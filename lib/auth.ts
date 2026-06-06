@@ -1,11 +1,28 @@
-import NextAuth, { type NextAuthOptions } from 'next-auth';
+import type { NextAuthOptions } from 'next-auth';
+import NextAuthHandler from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
+
+declare module 'next-auth' {
+  interface Session {
+    accessToken?: string;
+    refreshToken?: string;
+    expiresAt?: number;
+  }
+}
+
+declare module 'next-auth/jwt' {
+  interface JWT {
+    accessToken?: string;
+    refreshToken?: string;
+    expiresAt?: number;
+  }
+}
 
 export const authOptions: NextAuthOptions = {
   providers: [
     GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      clientId: process.env.GOOGLE_CLIENT_ID ?? '',
+      clientSecret: process.env.GOOGLE_CLIENT_SECRET ?? '',
       authorization: {
         params: {
           scope: 'openid profile email',
@@ -37,4 +54,4 @@ export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
 };
 
-export default NextAuth(authOptions);
+export default NextAuthHandler(authOptions);
