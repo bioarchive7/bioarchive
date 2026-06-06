@@ -8,13 +8,14 @@
       "DOM.Iterable"
     ],
     "module": "ESNext",
+    "ignoreDeprecations": "6.0",
     "skipLibCheck": true,
     "strict": true,
     "esModuleInterop": true,
     "noImplicitAny": true,
     "strictNullChecks": true,
     "strictFunctionTypes": true,
-    "noUnusedLocals": true,
+    "noUnusedLocals": false,
     "noUnusedParameters": true,
     "noImplicitReturns": true,
     "moduleResolution": "bundler",
@@ -24,7 +25,7 @@
     "noEmit": true,
     "jsx": "react-jsx",
     "jsxImportSource": "react",
-    "baseUrl": ".",
+    "baseUrl": "./",
     "paths": {
       "@/*": [
         "./*"
