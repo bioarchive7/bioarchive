@@ -13,7 +13,7 @@
     "googleapis": "^118.0.0",
     "lucide-react": "^0.263.1",
     "next": "^16.2.7",
-    "next-auth": "^4.24.14",
+    "next-auth": "4.24.14",
     "react": "^18",
     "react-dom": "^18",
     "resend": "^6.12.4"
