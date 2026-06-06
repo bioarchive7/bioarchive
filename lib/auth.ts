@@ -1,5 +1,4 @@
-import NextAuth from 'next-auth';
-import type { NextAuthOptions } from 'next-auth';        // ✅ exists in v4
+import NextAuth, { type NextAuthOptions } from 'next-auth';
 import GoogleProvider from 'next-auth/providers/google';
 
 export const authOptions: NextAuthOptions = {
@@ -26,12 +25,9 @@ export const authOptions: NextAuthOptions = {
       return token;
     },
     async session({ session, token }) {
-      session.accessToken = token.accessToken as string;
-      session.refreshToken = token.refreshToken as string;
-      session.expiresAt = token.expiresAt as number;
-      if (session.user) {
-        session.user.email = token.email as string;
-      }
+      session.accessToken = token.accessToken;
+      session.refreshToken = token.refreshToken;
+      session.expiresAt = token.expiresAt;
       return session;
     },
   },
