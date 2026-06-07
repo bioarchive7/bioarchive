@@ -87,7 +87,7 @@ export default function Home() {
             animate={{ opacity: 1 }}
             transition={{ duration: 0.6 }}
             style={{
-              padding: 'clamp(40px, 6vw, 80px) clamp(20px, 4vw, 48px) clamp(32px, 4vw, 56px)',
+              padding: 'clamp(32px, 4vw, 56px) 32px clamp(24px, 3vw, 40px) 24px',
               borderBottom: '1px solid var(--glass-border)',
               position: 'relative',
               overflow: 'hidden',
@@ -195,7 +195,7 @@ export default function Home() {
           {/* ── Semester blocks ──────────────────────────────── */}
           <div
             style={{
-              padding: 'clamp(20px, 3vw, 40px) clamp(20px, 4vw, 48px)',
+              padding: 'clamp(16px, 2vw, 32px) 32px clamp(16px, 3vw, 40px) 24px',
               display: 'flex',
               flexDirection: 'column',
               gap: '0',
