@@ -102,24 +102,35 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           </footer>
         </div>
 
-        {/* ── Loading → reveal script ────────────────────────── */}
+        {/* ── Loading → reveal script (suppressed hydration check) ────────────────── */}
         <script
+          suppressHydrationWarning
           dangerouslySetInnerHTML={{
             __html: `
               (function() {
-                var screen = document.getElementById('loading-screen');
-                var page   = document.getElementById('page-content');
-                // Reveal after bar animation completes (~1.8s total)
-                var delay = Math.max(1800, 0);
-                setTimeout(function() {
-                  if (screen) screen.classList.add('hidden');
-                  if (page) {
+                if (typeof document === 'undefined') return;
+                function setupPageReveal() {
+                  var screen = document.getElementById('loading-screen');
+                  var page   = document.getElementById('page-content');
+                  if (!screen || !page) return;
+                  
+                  // Reveal after bar animation completes (~1.8s total)
+                  var delay = Math.max(1800, 0);
+                  setTimeout(function() {
+                    screen.classList.add('hidden');
                     // Small extra delay so the fade-out starts first
                     setTimeout(function() {
                       page.classList.add('visible');
                     }, 120);
-                  }
-                }, delay);
+                  }, delay);
+                }
+                
+                // Run immediately and on DOM ready
+                if (document.readyState === 'loading') {
+                  document.addEventListener('DOMContentLoaded', setupPageReveal);
+                } else {
+                  setupPageReveal();
+                }
               })();
             `,
           }}
