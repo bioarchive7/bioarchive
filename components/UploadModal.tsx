@@ -21,7 +21,6 @@ const EXAM_TYPES = [
   { value: 'quiz',    label: 'Quiz' },
 ];
 
-/* Shared input style */
 const inputStyle: React.CSSProperties = {
   width: '100%',
   background: 'rgba(255,255,255,0.06)',
@@ -179,13 +178,15 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
             borderRadius: '18px',
             maxWidth: '520px',
             width: '100%',
-            maxHeight: '90vh',
-            overflowY: 'auto',
+            maxHeight: 'calc(100vh - 32px)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
             backdropFilter: 'blur(24px)',
             boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
           }}
         >
-          {/* ── Modal header ──────────────────────────────── */}
+          {/* Header Block */}
           <div
             style={{
               padding: '20px 22px 16px',
@@ -193,10 +194,9 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
               display: 'flex',
               alignItems: 'flex-start',
               justifyContent: 'space-between',
-              position: 'sticky',
-              top: 0,
               background: 'rgba(10,26,15,0.98)',
               borderRadius: '18px 18px 0 0',
+              flexShrink: 0,
               zIndex: 1,
             }}
           >
@@ -233,8 +233,7 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
             </button>
           </div>
 
-          {/* ── Progress bar ──────────────────────────────── */}
-          <div style={{ height: '2px', background: 'rgba(255,255,255,0.06)' }}>
+          <div style={{ height: '2px', background: 'rgba(255,255,255,0.06)', flexShrink: 0 }}>
             <motion.div
               animate={{ width: `${(step / 3) * 100}%` }}
               transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
@@ -245,10 +244,8 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
             />
           </div>
 
-          {/* ── Body ──────────────────────────────────────── */}
-          <div style={{ padding: '22px' }}>
-
-            {/* Status screens */}
+          {/* Scrollable Form Body Container */}
+          <div style={{ padding: '22px', overflowY: 'auto', flex: 1 }}>
             {(uploadStatus === 'success' || uploadStatus === 'duplicate' || uploadStatus === 'error') && (
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
@@ -296,8 +293,6 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
 
             {uploadStatus !== 'success' && uploadStatus !== 'duplicate' && (
               <AnimatePresence mode="wait">
-
-                {/* Step 1 */}
                 {step === 1 && (
                   <motion.div key="s1" variants={contentVar} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.22 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -362,7 +357,6 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                   </motion.div>
                 )}
 
-                {/* Step 2 */}
                 {step === 2 && (
                   <motion.div key="s2" variants={contentVar} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.22 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
@@ -400,7 +394,6 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                         </AnimatePresence>
                       )}
 
-                      {/* Drop zone */}
                       <div>
                         <label style={labelStyle}>File <span style={{ color: '#fca5a5' }}>*</span></label>
                         <div
@@ -472,11 +465,9 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                   </motion.div>
                 )}
 
-                {/* Step 3 */}
                 {step === 3 && (
                   <motion.div key="s3" variants={contentVar} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.22 }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      {/* Summary */}
                       <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', fontSize: '12px', lineHeight: 1.7 }}>
                         <p style={{ fontWeight: 600, color: 'var(--green-bright)', marginBottom: '6px', letterSpacing: '0.04em' }}>Upload Summary</p>
                         {[['Course', `${courseCode} — ${courseName}`], ['Professor', professor], ['Type', `${fileType}${examType ? ` (${EXAM_TYPES.find((e) => e.value === examType)?.label})` : ''}${year ? ` · ${year}` : ''}`], ['File', uploadedFile?.name || '']].map(([k, v]) => (
@@ -489,7 +480,6 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                         <input type="text" value={uploaderName} onChange={(e) => setUploaderName(e.target.value)} placeholder="Leave blank to stay anonymous" style={inputStyle} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')} />
                       </div>
 
-                      {/* Consent */}
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 14px', background: 'rgba(116,198,157,0.06)', border: '1px solid rgba(116,198,157,0.15)', borderRadius: '10px' }}>
                         <input type="checkbox" id="consent" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ marginTop: '2px', accentColor: 'var(--green-bright)', width: '14px', height: '14px' }} />
                         <label htmlFor="consent" style={{ fontSize: '12px', color: 'var(--text-2)', cursor: 'pointer', lineHeight: 1.5 }}>
@@ -497,7 +487,6 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                         </label>
                       </div>
 
-                      {/* Progress */}
                       {uploadStatus === 'uploading' && (
                         <div>
                           <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>

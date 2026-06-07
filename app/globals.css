@@ -454,9 +454,16 @@ body {
     transform: translateX(-100%);
     width: 280px;
     z-index: 40;
+    pointer-events: none;
   }
-  .sidebar.open { transform: translateX(0); }
-  .sidebar-overlay { display: block; }
+  .sidebar.open { transform: translateX(0);
+  pointer-events: auto; }
+  .sidebar-overlay { display: block;
+  pointer-events: none; }
+  .sidebar-overlay.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
   .main-content { margin-left: 0; }
   .ham-btn { display: flex; }
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Download, Eye, BookOpen, X } from 'lucide-react';
 import { SheetRow } from '@/lib/sheets';
@@ -46,7 +47,6 @@ export default function FileList({ courseCode, semester }: FileListProps) {
     if (file.webContentLink) window.open(file.webContentLink, '_blank');
   };
 
-  /* ── Loading ──────────────────────────────────────────────── */
   if (isLoading) {
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -57,7 +57,6 @@ export default function FileList({ courseCode, semester }: FileListProps) {
     );
   }
 
-  /* ── Empty ────────────────────────────────────────────────── */
   if (files.length === 0) {
     return (
       <div
@@ -99,7 +98,6 @@ export default function FileList({ courseCode, semester }: FileListProps) {
     );
   }
 
-  /* ── File rows ───────────────────────────────────────────── */
   return (
     <>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
@@ -123,7 +121,6 @@ export default function FileList({ courseCode, semester }: FileListProps) {
                 cursor: 'default',
               }}
             >
-              {/* Badge */}
               <span
                 className={badge.cls}
                 style={{
@@ -140,7 +137,6 @@ export default function FileList({ courseCode, semester }: FileListProps) {
                 {badge.label}
               </span>
 
-              {/* File info */}
               <div style={{ flex: 1, minWidth: 0 }}>
                 <p
                   style={{
@@ -176,7 +172,6 @@ export default function FileList({ courseCode, semester }: FileListProps) {
                 </p>
               </div>
 
-              {/* Action buttons */}
               <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                 <motion.button
                   whileHover={{ scale: 1.1 }}
@@ -241,9 +236,9 @@ export default function FileList({ courseCode, semester }: FileListProps) {
         })}
       </div>
 
-      {/* ── Preview modal ─────────────────────────────────── */}
-      <AnimatePresence>
-        {previewFileId && (
+      {/* Independent Full Screen Preview Portal */}
+      {previewFileId && typeof window !== 'undefined' && createPortal(
+        <AnimatePresence>
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -253,12 +248,12 @@ export default function FileList({ courseCode, semester }: FileListProps) {
             style={{
               position: 'fixed',
               inset: 0,
-              background: 'rgba(0,0,0,0.8)',
-              backdropFilter: 'blur(8px)',
+              background: 'rgba(0,0,0,0.85)',
+              backdropFilter: 'blur(12px)',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              zIndex: 60,
+              zIndex: 9999,
               padding: '20px',
             }}
           >
@@ -270,24 +265,24 @@ export default function FileList({ courseCode, semester }: FileListProps) {
               onClick={(e) => e.stopPropagation()}
               style={{
                 width: '100%',
-                maxWidth: '900px',
-                height: '82vh',
-                background: 'rgba(10,26,15,0.95)',
-                border: '1px solid rgba(116,198,157,0.2)',
+                maxWidth: '1000px',
+                height: '85vh',
+                background: 'rgba(10,26,15,0.98)',
+                border: '1px solid rgba(116,198,157,0.25)',
                 borderRadius: '16px',
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
                 backdropFilter: 'blur(20px)',
+                boxShadow: '0 24px 60px rgba(0,0,0,0.6)',
               }}
             >
-              {/* Modal header */}
               <div
                 style={{
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
-                  padding: '12px 16px',
+                  padding: '14px 20px',
                   borderBottom: '1px solid rgba(255,255,255,0.06)',
                   flexShrink: 0,
                 }}
@@ -295,42 +290,43 @@ export default function FileList({ courseCode, semester }: FileListProps) {
                 <span
                   style={{
                     fontSize: '11px',
-                    fontWeight: 500,
+                    fontWeight: 600,
                     letterSpacing: '0.12em',
                     textTransform: 'uppercase',
                     color: 'var(--text-3)',
                   }}
                 >
-                  Preview
+                  Document Portal Preview
                 </span>
                 <button
                   onClick={() => setPreviewFileId(null)}
                   style={{
-                    width: '28px',
-                    height: '28px',
+                    width: '32px',
+                    height: '32px',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     background: 'rgba(255,255,255,0.06)',
                     border: '1px solid rgba(255,255,255,0.1)',
-                    borderRadius: '7px',
+                    borderRadius: '8px',
                     cursor: 'pointer',
                     color: 'var(--text-2)',
                   }}
                 >
-                  <X size={13} strokeWidth={2.2} />
+                  <X size={14} strokeWidth={2.2} />
                 </button>
               </div>
               <iframe
                 src={`https://drive.google.com/file/d/${previewFileId}/preview`}
-                style={{ flex: 1, border: 'none', width: '100%' }}
+                style={{ flex: 1, border: 'none', width: '100%', height: '100%' }}
                 allowFullScreen
                 loading="lazy"
               />
             </motion.div>
           </motion.div>
-        )}
-      </AnimatePresence>
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   );
 }
