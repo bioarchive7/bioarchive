@@ -30,7 +30,6 @@ const COLUMNS: { key: SortField | 'actions'; label: string; width: string; sorta
 
 export default function SortableFileTable({
   files,
-  fileType,
   sortField,
   sortOrder,
   onSort,
