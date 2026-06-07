@@ -1,8 +1,3 @@
-/**
- * UploadModal component
- * Multi-step modal for uploading new study materials
- */
-
 'use client';
 
 import { useState, useRef } from 'react';
@@ -21,64 +16,74 @@ interface UploadModalProps {
 type Step = 1 | 2 | 3;
 
 const EXAM_TYPES = [
-  { value: 'midSem', label: 'Mid Semester' },
-  { value: 'endSem', label: 'End Semester' },
-  { value: 'quiz', label: 'Quiz' },
+  { value: 'midSem',  label: 'Mid Semester' },
+  { value: 'endSem',  label: 'End Semester' },
+  { value: 'quiz',    label: 'Quiz' },
 ];
 
+/* Shared input style */
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  background: 'rgba(255,255,255,0.06)',
+  border: '1px solid rgba(255,255,255,0.1)',
+  borderRadius: '10px',
+  padding: '10px 14px',
+  fontSize: '13px',
+  color: 'var(--text)',
+  outline: 'none',
+  fontFamily: "'Outfit', sans-serif",
+  transition: 'border-color 0.2s',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontSize: '11px',
+  fontWeight: 600,
+  letterSpacing: '0.1em',
+  textTransform: 'uppercase',
+  color: 'var(--text-3)',
+  marginBottom: '6px',
+  fontFamily: "'Outfit', sans-serif",
+};
+
 export default function UploadModal({ isOpen = false, onClose }: UploadModalProps) {
-  const [step, setStep] = useState<Step>(1);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'success' | 'duplicate' | 'error'>('idle');
+  const [step,           setStep]          = useState<Step>(1);
+  const [uploadProgress, setUploadProgress]= useState(0);
+  const [uploadStatus,   setUploadStatus]  = useState<'idle'|'uploading'|'success'|'duplicate'|'error'>('idle');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Form state
-  const [semester, setSemester] = useState<string>('');
-  const [courseCode, setCourseCode] = useState<string>('');
-  const [courseName, setCourseName] = useState<string>('');
-  const [professor, setProfessor] = useState<string>('');
-  const [fileType, setFileType] = useState<string>('');
-  const [examType, setExamType] = useState<string>('');
-  const [year, setYear] = useState<string>('');
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [uploaderName, setUploaderName] = useState<string>('');
-  const [consent, setConsent] = useState(false);
-  const [uploadMessage, setUploadMessage] = useState('');
+  const [semester,     setSemester]    = useState('');
+  const [courseCode,   setCourseCode]  = useState('');
+  const [courseName,   setCourseName]  = useState('');
+  const [professor,    setProfessor]   = useState('');
+  const [fileType,     setFileType]    = useState('');
+  const [examType,     setExamType]    = useState('');
+  const [year,         setYear]        = useState('');
+  const [uploadedFile, setUploadedFile]= useState<File | null>(null);
+  const [uploaderName, setUploaderName]= useState('');
+  const [consent,      setConsent]     = useState(false);
+  const [uploadMessage,setUploadMessage]=useState('');
 
-  // Derived data
-  const courses = semester ? CURRICULUM[semester] || [] : [];
-  const selectedCourse = courses.find((c) => c.code === courseCode);
-  const professors = selectedCourse?.professors || [];
+  const courses         = semester ? CURRICULUM[semester] || [] : [];
+  const selectedCourse  = courses.find((c) => c.code === courseCode);
+  const professors      = selectedCourse?.professors || [];
 
   const handleFileSelect = (file: File | null) => {
-    if (file) {
-      const ext = file.name.split('.').pop()?.toLowerCase() || '';
-      if (!config.ALLOWED_FILE_TYPES.includes(ext)) {
-        setUploadStatus('error');
-        setUploadMessage(`File type .${ext} not allowed. Allowed: ${config.ALLOWED_FILE_TYPES.join(', ')}`);
-        return;
-      }
-      if (file.size > config.MAX_UPLOAD_SIZE_MB * 1024 * 1024) {
-        setUploadStatus('error');
-        setUploadMessage(`File exceeds ${config.MAX_UPLOAD_SIZE_MB}MB limit. Your file: ${formatFileSize(file.size)}`);
-        return;
-      }
-      setUploadedFile(file);
-      setUploadStatus('idle');
-      setUploadMessage('');
+    if (!file) return;
+    const ext = file.name.split('.').pop()?.toLowerCase() || '';
+    if (!config.ALLOWED_FILE_TYPES.includes(ext)) {
+      setUploadStatus('error');
+      setUploadMessage(`File type .${ext} not allowed. Allowed: ${config.ALLOWED_FILE_TYPES.join(', ')}`);
+      return;
     }
-  };
-
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    const file = e.dataTransfer.files[0];
-    if (file) handleFileSelect(file);
+    if (file.size > config.MAX_UPLOAD_SIZE_MB * 1024 * 1024) {
+      setUploadStatus('error');
+      setUploadMessage(`File exceeds ${config.MAX_UPLOAD_SIZE_MB}MB. Your file: ${formatFileSize(file.size)}`);
+      return;
+    }
+    setUploadedFile(file);
+    setUploadStatus('idle');
+    setUploadMessage('');
   };
 
   const handleSubmit = async () => {
@@ -92,482 +97,433 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
       setUploadMessage('Please select the exam type for question papers');
       return;
     }
-
     setUploadStatus('uploading');
     setUploadProgress(0);
     setUploadMessage('');
 
-    const formData = new FormData();
-    formData.append('file', uploadedFile);
-    formData.append('semester', semester);
-    formData.append('courseCode', courseCode);
-    formData.append('courseName', courseName);
-    formData.append('professor', professor);
-    formData.append('examType', fileType === 'qpaper' ? examType : 'na');
-    formData.append('fileType', fileType);
-    if (year) formData.append('year', year);
-    formData.append('uploaderName', uploaderName || 'Anonymous');
-    formData.append('consent', consent ? 'true' : 'false');
+    const fd = new FormData();
+    fd.append('file', uploadedFile);
+    fd.append('semester', semester);
+    fd.append('courseCode', courseCode);
+    fd.append('courseName', courseName);
+    fd.append('professor', professor);
+    fd.append('examType', fileType === 'qpaper' ? examType : 'na');
+    fd.append('fileType', fileType);
+    if (year) fd.append('year', year);
+    fd.append('uploaderName', uploaderName || 'Anonymous');
+    fd.append('consent', consent ? 'true' : 'false');
 
-    const response: UploadResponse = await uploadFile(formData, (percent) => {
-      setUploadProgress(percent);
-    });
-
-    if (response.status === 'success') {
+    const res: UploadResponse = await uploadFile(fd, (pct) => setUploadProgress(pct));
+    if (res.status === 'success') {
       setUploadStatus('success');
-      setUploadMessage(response.message);
+      setUploadMessage(res.message);
       setTimeout(() => { resetForm(); onClose?.(); }, 2500);
-    } else if (response.status === 'duplicate') {
+    } else if (res.status === 'duplicate') {
       setUploadStatus('duplicate');
-      setUploadMessage(response.message);
+      setUploadMessage(res.message);
       setTimeout(() => { resetForm(); onClose?.(); }, 2500);
     } else {
       setUploadStatus('error');
-      setUploadMessage(response.message);
+      setUploadMessage(res.message);
     }
   };
 
   const resetForm = () => {
-    setStep(1);
-    setSemester('');
-    setCourseCode('');
-    setCourseName('');
-    setProfessor('');
-    setFileType('');
-    setExamType('');
-    setYear('');
-    setUploadedFile(null);
-    setUploaderName('');
-    setConsent(false);
-    setUploadProgress(0);
-    setUploadStatus('idle');
-    setUploadMessage('');
+    setStep(1); setSemester(''); setCourseCode(''); setCourseName('');
+    setProfessor(''); setFileType(''); setExamType(''); setYear('');
+    setUploadedFile(null); setUploaderName(''); setConsent(false);
+    setUploadProgress(0); setUploadStatus('idle'); setUploadMessage('');
   };
 
-  const handleClose = () => {
-    resetForm();
-    onClose?.();
-  };
+  const handleClose = () => { resetForm(); onClose?.(); };
 
-  // Step validation
-  const canProceedStep1 = semester && courseCode && professor;
-  const canProceedStep2 =
-    fileType &&
-    uploadedFile &&
-    (fileType !== 'qpaper' || (!!examType && !!year));
+  const canStep1 = !!(semester && courseCode && professor);
+  const canStep2 = !!(fileType && uploadedFile && (fileType !== 'qpaper' || (!!examType && !!year)));
 
-  const modalVariants = {
-    hidden: { opacity: 0 },
-    visible: { opacity: 1 },
-  };
-
-  const contentVariants = {
-    hidden: { y: 20, opacity: 0 },
-    visible: { y: 0, opacity: 1 },
-    exit: { y: 20, opacity: 0 },
+  const contentVar = {
+    hidden:  { opacity: 0, y: 12 },
+    visible: { opacity: 1, y: 0 },
+    exit:    { opacity: 0, y: -8 },
   };
 
   if (!isOpen) return null;
 
   return (
-    <motion.div
-      variants={modalVariants}
-      initial="hidden"
-      animate="visible"
-      exit="hidden"
-      className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4"
-      onClick={handleClose}
-    >
+    <AnimatePresence>
       <motion.div
-        variants={contentVariants}
-        initial="hidden"
-        animate="visible"
-        exit="exit"
-        onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        onClick={handleClose}
+        style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0,0,0,0.75)',
+          backdropFilter: 'blur(10px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 50,
+          padding: '16px',
+        }}
       >
-        {/* Header */}
-        <div className="bg-[#1a4a2e] text-white p-6 flex justify-between items-center sticky top-0 z-10">
-          <div>
-            <h2 className="text-2xl font-bold">Upload Study Material</h2>
-            <p className="text-green-200 text-sm mt-0.5">
-              Step {step} of 3 —{' '}
-              {step === 1 ? 'Course Details' : step === 2 ? 'File Details' : 'Your Info'}
-            </p>
-          </div>
-          <button
-            onClick={handleClose}
-            className="hover:bg-white/20 p-1 rounded-lg transition-colors"
+        <motion.div
+          initial={{ scale: 0.96, opacity: 0, y: 16 }}
+          animate={{ scale: 1, opacity: 1, y: 0 }}
+          exit={{ scale: 0.96, opacity: 0, y: 8 }}
+          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          onClick={(e) => e.stopPropagation()}
+          style={{
+            background: 'rgba(10,26,15,0.96)',
+            border: '1px solid rgba(116,198,157,0.2)',
+            borderRadius: '18px',
+            maxWidth: '520px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            backdropFilter: 'blur(24px)',
+            boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+          }}
+        >
+          {/* ── Modal header ──────────────────────────────── */}
+          <div
+            style={{
+              padding: '20px 22px 16px',
+              borderBottom: '1px solid rgba(255,255,255,0.06)',
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              position: 'sticky',
+              top: 0,
+              background: 'rgba(10,26,15,0.98)',
+              borderRadius: '18px 18px 0 0',
+              zIndex: 1,
+            }}
           >
-            <X size={24} />
-          </button>
-        </div>
+            <div>
+              <h2
+                style={{
+                  fontFamily: "'Cormorant Garamond', serif",
+                  fontSize: '22px',
+                  fontWeight: 700,
+                  color: 'var(--text)',
+                  letterSpacing: '-0.01em',
+                  marginBottom: '3px',
+                }}
+              >
+                Upload Study Material
+              </h2>
+              <p style={{ fontSize: '12px', color: 'var(--text-3)' }}>
+                Step {step} of 3 —{' '}
+                {step === 1 ? 'Course Details' : step === 2 ? 'File Details' : 'Your Info'}
+              </p>
+            </div>
+            <button
+              onClick={handleClose}
+              style={{
+                width: '32px', height: '32px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                background: 'rgba(255,255,255,0.06)',
+                border: '1px solid rgba(255,255,255,0.1)',
+                borderRadius: '8px', cursor: 'pointer',
+                color: 'var(--text-2)',
+              }}
+            >
+              <X size={15} strokeWidth={2} />
+            </button>
+          </div>
 
-        {/* Progress bar */}
-        <div className="h-1 bg-gray-200">
-          <motion.div
-            animate={{ width: `${(step / 3) * 100}%` }}
-            transition={{ duration: 0.3 }}
-            className="h-full bg-[#d4a853]"
-          />
-        </div>
+          {/* ── Progress bar ──────────────────────────────── */}
+          <div style={{ height: '2px', background: 'rgba(255,255,255,0.06)' }}>
+            <motion.div
+              animate={{ width: `${(step / 3) * 100}%` }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+              style={{
+                height: '100%',
+                background: 'linear-gradient(90deg, var(--green-light), var(--gold))',
+              }}
+            />
+          </div>
 
-        {/* Content */}
-        <div className="p-6">
-          {uploadStatus === 'success' || uploadStatus === 'duplicate' || uploadStatus === 'error' ? (
-            <motion.div className="text-center py-8">
-              {uploadStatus === 'success' && (
-                <>
-                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="flex justify-center mb-4">
-                    <CheckCircle size={48} className="text-green-600" />
-                  </motion.div>
-                  <h3 className="text-xl font-bold text-[#1a4a2e] mb-2">Upload Successful!</h3>
-                  <p className="text-gray-600">{uploadMessage}</p>
-                </>
-              )}
-              {uploadStatus === 'duplicate' && (
-                <>
-                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="flex justify-center mb-4">
-                    <AlertCircle size={48} className="text-amber-600" />
-                  </motion.div>
-                  <h3 className="text-xl font-bold text-amber-600 mb-2">Duplicate Detected</h3>
-                  <p className="text-gray-600">{uploadMessage}</p>
-                </>
-              )}
-              {uploadStatus === 'error' && (
-                <>
-                  <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} className="flex justify-center mb-4">
-                    <AlertCircle size={48} className="text-red-600" />
-                  </motion.div>
-                  <h3 className="text-xl font-bold text-red-600 mb-2">Upload Failed</h3>
-                  <p className="text-gray-600">{uploadMessage}</p>
-                  <button
-                    onClick={() => setUploadStatus('idle')}
-                    className="mt-4 px-6 py-2 bg-[#d4a853] text-white rounded-full hover:bg-amber-600 transition-colors"
-                  >
-                    Try Again
-                  </button>
-                </>
-              )}
-            </motion.div>
-          ) : (
-            <AnimatePresence mode="wait">
+          {/* ── Body ──────────────────────────────────────── */}
+          <div style={{ padding: '22px' }}>
 
-              {/* ── STEP 1 — Course Details ── */}
-              {step === 1 && (
-                <motion.div
-                  key="step1"
-                  variants={contentVariants}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  className="space-y-4"
-                >
-                  {/* Semester */}
-                  <div>
-                    <label className="block text-sm font-semibold text-[#1c1c1e] mb-2">
-                      Semester <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={semester}
-                      onChange={(e) => {
-                        setSemester(e.target.value);
-                        setCourseCode('');
-                        setCourseName('');
-                        setProfessor('');
-                      }}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1a4a2e] focus:border-transparent outline-none"
-                    >
-                      <option value="">Select Semester</option>
-                      {config.NISER_SEMESTERS.map((sem) => (
-                        <option key={sem} value={sem}>Semester {sem}</option>
-                      ))}
-                      <option value="ADVANCE COURSES">Advanced Courses</option>
-                    </select>
-                  </div>
-
-                  {/* Course */}
-                  <div>
-                    <label className="block text-sm font-semibold text-[#1c1c1e] mb-2">
-                      Course <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={courseCode}
-                      onChange={(e) => {
-                        const selected = courses.find((c) => c.code === e.target.value);
-                        setCourseCode(e.target.value);
-                        setCourseName(selected?.name || '');
-                        setProfessor(''); // reset professor when course changes
-                      }}
-                      disabled={!semester}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1a4a2e] focus:border-transparent outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    >
-                      <option value="">Select Course</option>
-                      {courses.map((course) => (
-                        <option key={course.code} value={course.code}>
-                          {course.code} — {course.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  {/* Professor */}
-                  <div>
-                    <label className="block text-sm font-semibold text-[#1c1c1e] mb-2">
-                      Professor who taught this course <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={professor}
-                      onChange={(e) => setProfessor(e.target.value)}
-                      disabled={!courseCode}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1a4a2e] focus:border-transparent outline-none disabled:bg-gray-100 disabled:cursor-not-allowed"
-                    >
-                      <option value="">
-                        {courseCode ? 'Select Professor' : 'Select a course first'}
-                      </option>
-                      {professors.map((prof) => (
-                        <option key={prof} value={prof}>{prof}</option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div className="flex gap-3 mt-6 pt-4 border-t border-gray-200">
-                    <button
-                      onClick={handleClose}
-                      className="flex-1 px-4 py-2 text-[#1c1c1e] border border-gray-300 rounded-full hover:bg-gray-50 transition-colors font-medium"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={() => setStep(2)}
-                      disabled={!canProceedStep1}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#d4a853] text-white rounded-full hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
-                    >
-                      Next <ChevronRight size={18} />
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* ── STEP 2 — File Details ── */}
-              {step === 2 && (
-                <motion.div
-                  key="step2"
-                  variants={contentVariants}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  className="space-y-4"
-                >
-                  {/* File Type */}
-                  <div>
-                    <label className="block text-sm font-semibold text-[#1c1c1e] mb-2">
-                      File Type <span className="text-red-500">*</span>
-                    </label>
-                    <select
-                      value={fileType}
-                      onChange={(e) => {
-                        setFileType(e.target.value);
-                        setExamType(''); // reset exam type when file type changes
-                      }}
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1a4a2e] focus:border-transparent outline-none"
-                    >
-                      <option value="">Select File Type</option>
-                      <option value="qpaper">Question Paper</option>
-                      <option value="notes">Notes</option>
-                      <option value="slides">Slides</option>
-                      <option value="lab">Lab Manual</option>
-                      <option value="assignment">Assignment</option>
-                      <option value="other">Other</option>
-                    </select>
-                  </div>
-
-                  {/* Exam Type — only for question papers */}
-                  {fileType === 'qpaper' && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
-                      exit={{ opacity: 0, height: 0 }}
-                    >
-                      <label className="block text-sm font-semibold text-[#1c1c1e] mb-2">
-                        Exam Type <span className="text-red-500">*</span>
-                      </label>
-                      <select
-                        value={examType}
-                        onChange={(e) => setExamType(e.target.value)}
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1a4a2e] focus:border-transparent outline-none"
-                      >
-                        <option value="">Select Exam Type</option>
-                        {EXAM_TYPES.map((et) => (
-                          <option key={et.value} value={et.value}>{et.label}</option>
-                        ))}
-                      </select>
+            {/* Status screens */}
+            {(uploadStatus === 'success' || uploadStatus === 'duplicate' || uploadStatus === 'error') && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                style={{ textAlign: 'center', padding: '32px 16px' }}
+              >
+                {uploadStatus === 'success' && (
+                  <>
+                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 300 }}>
+                      <CheckCircle size={48} style={{ margin: '0 auto 16px', color: 'var(--green-bright)' }} />
                     </motion.div>
-                  )}
-
-                  {/* Year — only for question papers */}
-                  {fileType === 'qpaper' && (
-                    <motion.div
-                      initial={{ opacity: 0, height: 0 }}
-                      animate={{ opacity: 1, height: 'auto' }}
+                    <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '20px', fontWeight: 700, color: 'var(--green-bright)', marginBottom: '8px' }}>
+                      Upload Successful!
+                    </h3>
+                    <p style={{ fontSize: '13px', color: 'var(--text-2)' }}>{uploadMessage}</p>
+                  </>
+                )}
+                {uploadStatus === 'duplicate' && (
+                  <>
+                    <AlertCircle size={48} style={{ margin: '0 auto 16px', color: 'var(--gold)' }} />
+                    <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '20px', fontWeight: 700, color: 'var(--gold)', marginBottom: '8px' }}>
+                      Duplicate Detected
+                    </h3>
+                    <p style={{ fontSize: '13px', color: 'var(--text-2)' }}>{uploadMessage}</p>
+                  </>
+                )}
+                {uploadStatus === 'error' && (
+                  <>
+                    <AlertCircle size={48} style={{ margin: '0 auto 16px', color: '#fca5a5' }} />
+                    <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '20px', fontWeight: 700, color: '#fca5a5', marginBottom: '8px' }}>
+                      Upload Failed
+                    </h3>
+                    <p style={{ fontSize: '13px', color: 'var(--text-2)', marginBottom: '16px' }}>{uploadMessage}</p>
+                    <button
+                      onClick={() => setUploadStatus('idle')}
+                      className="btn-gold"
+                      style={{ borderRadius: '10px' }}
                     >
-                      <label className="block text-sm font-semibold text-[#1c1c1e] mb-2">
-                        Year <span className="text-red-500">*</span>
-                      </label>
-                      <input
-                        type="number"
-                        value={year}
-                        onChange={(e) => setYear(e.target.value)}
-                        placeholder="e.g., 2023"
-                        min="2000"
-                        max={new Date().getFullYear()}
-                        className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1a4a2e] focus:border-transparent outline-none"
-                      />
-                    </motion.div>
-                  )}
+                      Try Again
+                    </button>
+                  </>
+                )}
+              </motion.div>
+            )}
 
-                  {/* File Upload */}
-                  <div>
-                    <label className="block text-sm font-semibold text-[#1c1c1e] mb-2">
-                      File <span className="text-red-500">*</span>
-                    </label>
-                    <div
-                      onDragOver={handleDragOver}
-                      onDrop={handleDrop}
-                      onClick={() => fileInputRef.current?.click()}
-                      className="border-2 border-dashed border-[#d4a853] rounded-lg p-8 text-center cursor-pointer hover:bg-amber-50 transition-colors"
-                    >
-                      <Upload size={32} className="mx-auto text-[#d4a853] mb-2" />
-                      <p className="text-gray-700 font-medium">Drag and drop or click to select</p>
-                      <p className="text-sm text-gray-500 mt-1">
-                        {config.ALLOWED_FILE_TYPES.map(t => `.${t}`).join(', ')} • Max {config.MAX_UPLOAD_SIZE_MB}MB
-                      </p>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        onChange={(e) => handleFileSelect(e.target.files?.[0] || null)}
-                        className="hidden"
-                      />
-                    </div>
+            {uploadStatus !== 'success' && uploadStatus !== 'duplicate' && (
+              <AnimatePresence mode="wait">
 
-                    {uploadedFile && (
-                      <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center justify-between">
-                        <div>
-                          <p className="font-medium text-green-900 text-sm">{uploadedFile.name}</p>
-                          <p className="text-xs text-green-700">{formatFileSize(uploadedFile.size)}</p>
-                        </div>
-                        <button onClick={() => setUploadedFile(null)} className="text-green-600 hover:text-green-800">
-                          <X size={18} />
+                {/* Step 1 */}
+                {step === 1 && (
+                  <motion.div key="s1" variants={contentVar} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.22 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div>
+                        <label style={labelStyle}>Semester <span style={{ color: '#fca5a5' }}>*</span></label>
+                        <select
+                          value={semester}
+                          onChange={(e) => { setSemester(e.target.value); setCourseCode(''); setCourseName(''); setProfessor(''); }}
+                          style={{ ...inputStyle, appearance: 'none' }}
+                          onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')}
+                          onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+                        >
+                          <option value="" style={{ background: '#0a1a0f' }}>Select Semester</option>
+                          {config.NISER_SEMESTERS.map((s) => (
+                            <option key={s} value={s} style={{ background: '#0a1a0f' }}>Semester {s}</option>
+                          ))}
+                          <option value="ADVANCE COURSES" style={{ background: '#0a1a0f' }}>Advanced Courses</option>
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={labelStyle}>Course <span style={{ color: '#fca5a5' }}>*</span></label>
+                        <select
+                          value={courseCode}
+                          onChange={(e) => { const s = courses.find((c) => c.code === e.target.value); setCourseCode(e.target.value); setCourseName(s?.name || ''); setProfessor(''); }}
+                          disabled={!semester}
+                          style={{ ...inputStyle, opacity: semester ? 1 : 0.5, appearance: 'none' }}
+                          onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')}
+                          onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+                        >
+                          <option value="" style={{ background: '#0a1a0f' }}>Select Course</option>
+                          {courses.map((c) => (
+                            <option key={c.code} value={c.code} style={{ background: '#0a1a0f' }}>{c.code} — {c.name}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div>
+                        <label style={labelStyle}>Professor <span style={{ color: '#fca5a5' }}>*</span></label>
+                        <select
+                          value={professor}
+                          onChange={(e) => setProfessor(e.target.value)}
+                          disabled={!courseCode}
+                          style={{ ...inputStyle, opacity: courseCode ? 1 : 0.5, appearance: 'none' }}
+                          onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')}
+                          onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+                        >
+                          <option value="" style={{ background: '#0a1a0f' }}>{courseCode ? 'Select Professor' : 'Select a course first'}</option>
+                          {professors.map((p) => (
+                            <option key={p} value={p} style={{ background: '#0a1a0f' }}>{p}</option>
+                          ))}
+                        </select>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                        <button onClick={handleClose} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px' }}>Cancel</button>
+                        <button onClick={() => setStep(2)} disabled={!canStep1} className="btn-gold" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: canStep1 ? 1 : 0.4, cursor: canStep1 ? 'pointer' : 'not-allowed' }}>
+                          Next <ChevronRight size={15} />
                         </button>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  </motion.div>
+                )}
 
-                  <div className="flex gap-3 mt-6 pt-4 border-t border-gray-200">
-                    <button
-                      onClick={() => setStep(1)}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-[#1c1c1e] border border-gray-300 rounded-full hover:bg-gray-50 transition-colors font-medium"
-                    >
-                      <ChevronLeft size={18} /> Back
-                    </button>
-                    <button
-                      onClick={() => setStep(3)}
-                      disabled={!canProceedStep2}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 bg-[#d4a853] text-white rounded-full hover:bg-amber-600 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
-                    >
-                      Next <ChevronRight size={18} />
-                    </button>
-                  </div>
-                </motion.div>
-              )}
-
-              {/* ── STEP 3 — Uploader Info ── */}
-              {step === 3 && (
-                <motion.div
-                  key="step3"
-                  variants={contentVariants}
-                  initial="hidden"
-                  animate="visible"
-                  exit="exit"
-                  className="space-y-4"
-                >
-                  {/* Summary */}
-                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-200 text-sm space-y-1">
-                    <p className="font-semibold text-[#1a4a2e] mb-2">Upload Summary</p>
-                    <p><span className="text-gray-500">Course:</span> {courseCode} — {courseName}</p>
-                    <p><span className="text-gray-500">Professor:</span> {professor}</p>
-                    <p><span className="text-gray-500">Type:</span> {fileType}{examType ? ` (${EXAM_TYPES.find(e => e.value === examType)?.label})` : ''}{year ? ` • ${year}` : ''}</p>
-                    <p><span className="text-gray-500">File:</span> {uploadedFile?.name}</p>
-                  </div>
-
-                  {/* Uploader Name */}
-                  <div>
-                    <label className="block text-sm font-semibold text-[#1c1c1e] mb-2">
-                      Your Name <span className="text-gray-400 font-normal">(optional)</span>
-                    </label>
-                    <input
-                      type="text"
-                      value={uploaderName}
-                      onChange={(e) => setUploaderName(e.target.value)}
-                      placeholder="Leave blank to remain anonymous"
-                      className="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-[#1a4a2e] focus:border-transparent outline-none"
-                    />
-                  </div>
-
-                  {/* Consent */}
-                  <div className="flex items-start gap-3 p-3 bg-blue-50 rounded-lg border border-blue-200">
-                    <input
-                      type="checkbox"
-                      id="consent"
-                      checked={consent}
-                      onChange={(e) => setConsent(e.target.checked)}
-                      className="mt-1 w-4 h-4 accent-[#1a4a2e]"
-                    />
-                    <label htmlFor="consent" className="text-sm text-blue-900 cursor-pointer">
-                      I consent to having my name displayed with this upload
-                    </label>
-                  </div>
-
-                  {/* Upload Progress */}
-                  {uploadStatus === 'uploading' && (
-                    <div className="space-y-2">
-                      <div className="flex justify-between text-sm">
-                        <span className="text-gray-600">Uploading...</span>
-                        <span className="text-[#d4a853] font-medium">{uploadProgress}%</span>
+                {/* Step 2 */}
+                {step === 2 && (
+                  <motion.div key="s2" variants={contentVar} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.22 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      <div>
+                        <label style={labelStyle}>File Type <span style={{ color: '#fca5a5' }}>*</span></label>
+                        <select
+                          value={fileType}
+                          onChange={(e) => { setFileType(e.target.value); setExamType(''); }}
+                          style={{ ...inputStyle, appearance: 'none' }}
+                          onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')}
+                          onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+                        >
+                          <option value="" style={{ background: '#0a1a0f' }}>Select File Type</option>
+                          {['qpaper','notes','slides','lab','assignment','other'].map((t) => (
+                            <option key={t} value={t} style={{ background: '#0a1a0f' }}>
+                              {{ qpaper:'Question Paper', notes:'Notes', slides:'Slides', lab:'Lab Manual', assignment:'Assignment', other:'Other' }[t]}
+                            </option>
+                          ))}
+                        </select>
                       </div>
-                      <div className="w-full h-2 bg-gray-200 rounded-full overflow-hidden">
-                        <motion.div
-                          initial={{ width: 0 }}
-                          animate={{ width: `${uploadProgress}%` }}
-                          className="h-full bg-[#d4a853]"
-                        />
+
+                      {fileType === 'qpaper' && (
+                        <AnimatePresence>
+                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                            <label style={labelStyle}>Exam Type <span style={{ color: '#fca5a5' }}>*</span></label>
+                            <select value={examType} onChange={(e) => setExamType(e.target.value)} style={{ ...inputStyle, appearance: 'none' }} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}>
+                              <option value="" style={{ background: '#0a1a0f' }}>Select Exam Type</option>
+                              {EXAM_TYPES.map((et) => <option key={et.value} value={et.value} style={{ background: '#0a1a0f' }}>{et.label}</option>)}
+                            </select>
+                          </motion.div>
+                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginTop: '12px' }}>
+                            <label style={labelStyle}>Year <span style={{ color: '#fca5a5' }}>*</span></label>
+                            <input type="number" value={year} onChange={(e) => setYear(e.target.value)} placeholder="e.g. 2023" min="2000" max={new Date().getFullYear()} style={inputStyle} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')} />
+                          </motion.div>
+                        </AnimatePresence>
+                      )}
+
+                      {/* Drop zone */}
+                      <div>
+                        <label style={labelStyle}>File <span style={{ color: '#fca5a5' }}>*</span></label>
+                        <div
+                          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleFileSelect(e.dataTransfer.files[0]); }}
+                          onClick={() => fileInputRef.current?.click()}
+                          style={{
+                            border: '1px dashed rgba(212,168,83,0.4)',
+                            borderRadius: '12px',
+                            padding: '28px',
+                            textAlign: 'center',
+                            cursor: 'pointer',
+                            background: 'rgba(212,168,83,0.04)',
+                            transition: 'background 0.2s',
+                          }}
+                          onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = 'rgba(212,168,83,0.08)')}
+                          onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.background = 'rgba(212,168,83,0.04)')}
+                        >
+                          <Upload size={28} style={{ margin: '0 auto 8px', color: 'var(--gold)' }} />
+                          <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-2)', marginBottom: '4px' }}>
+                            Drag and drop or click to select
+                          </p>
+                          <p style={{ fontSize: '11px', color: 'var(--text-3)' }}>
+                            {config.ALLOWED_FILE_TYPES.map((t) => `.${t}`).join(', ')} · Max {config.MAX_UPLOAD_SIZE_MB}MB
+                          </p>
+                          <input ref={fileInputRef} type="file" onChange={(e) => handleFileSelect(e.target.files?.[0] || null)} style={{ display: 'none' }} />
+                        </div>
+
+                        {uploadedFile && (
+                          <motion.div
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            style={{
+                              marginTop: '10px',
+                              padding: '10px 14px',
+                              background: 'rgba(82,183,136,0.1)',
+                              border: '1px solid rgba(82,183,136,0.25)',
+                              borderRadius: '10px',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '10px',
+                            }}
+                          >
+                            <div>
+                              <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--green-bright)', marginBottom: '2px' }}>{uploadedFile.name}</p>
+                              <p style={{ fontSize: '11px', color: 'var(--text-3)' }}>{formatFileSize(uploadedFile.size)}</p>
+                            </div>
+                            <button onClick={() => setUploadedFile(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-3)' }}>
+                              <X size={15} />
+                            </button>
+                          </motion.div>
+                        )}
+                      </div>
+
+                      {uploadStatus === 'error' && (
+                        <p style={{ fontSize: '12px', color: '#fca5a5', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '10px 12px' }}>
+                          {uploadMessage}
+                        </p>
+                      )}
+
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                        <button onClick={() => setStep(1)} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px' }}><ChevronLeft size={15} /> Back</button>
+                        <button onClick={() => setStep(3)} disabled={!canStep2} className="btn-gold" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: canStep2 ? 1 : 0.4, cursor: canStep2 ? 'pointer' : 'not-allowed' }}>
+                          Next <ChevronRight size={15} />
+                        </button>
                       </div>
                     </div>
-                  )}
+                  </motion.div>
+                )}
 
-                  <div className="flex gap-3 mt-6 pt-4 border-t border-gray-200">
-                    <button
-                      onClick={() => setStep(2)}
-                      disabled={uploadStatus === 'uploading'}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-2 text-[#1c1c1e] border border-gray-300 rounded-full hover:bg-gray-50 disabled:bg-gray-100 transition-colors font-medium"
-                    >
-                      <ChevronLeft size={18} /> Back
-                    </button>
-                    <button
-                      onClick={handleSubmit}
-                      disabled={uploadStatus === 'uploading'}
-                      className="flex-1 px-4 py-2 bg-[#1a4a2e] text-white rounded-full hover:bg-[#0f2f1e] disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors font-medium"
-                    >
-                      {uploadStatus === 'uploading' ? 'Uploading...' : 'Submit'}
-                    </button>
-                  </div>
-                </motion.div>
-              )}
+                {/* Step 3 */}
+                {step === 3 && (
+                  <motion.div key="s3" variants={contentVar} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.22 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                      {/* Summary */}
+                      <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', fontSize: '12px', lineHeight: 1.7 }}>
+                        <p style={{ fontWeight: 600, color: 'var(--green-bright)', marginBottom: '6px', letterSpacing: '0.04em' }}>Upload Summary</p>
+                        {[['Course', `${courseCode} — ${courseName}`], ['Professor', professor], ['Type', `${fileType}${examType ? ` (${EXAM_TYPES.find((e) => e.value === examType)?.label})` : ''}${year ? ` · ${year}` : ''}`], ['File', uploadedFile?.name || '']].map(([k, v]) => (
+                          <p key={k}><span style={{ color: 'var(--text-3)' }}>{k}:</span> <span style={{ color: 'var(--text-2)' }}>{v}</span></p>
+                        ))}
+                      </div>
 
-            </AnimatePresence>
-          )}
-        </div>
+                      <div>
+                        <label style={labelStyle}>Your Name <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
+                        <input type="text" value={uploaderName} onChange={(e) => setUploaderName(e.target.value)} placeholder="Leave blank to stay anonymous" style={inputStyle} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')} />
+                      </div>
+
+                      {/* Consent */}
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 14px', background: 'rgba(116,198,157,0.06)', border: '1px solid rgba(116,198,157,0.15)', borderRadius: '10px' }}>
+                        <input type="checkbox" id="consent" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ marginTop: '2px', accentColor: 'var(--green-bright)', width: '14px', height: '14px' }} />
+                        <label htmlFor="consent" style={{ fontSize: '12px', color: 'var(--text-2)', cursor: 'pointer', lineHeight: 1.5 }}>
+                          I consent to having my name displayed with this upload
+                        </label>
+                      </div>
+
+                      {/* Progress */}
+                      {uploadStatus === 'uploading' && (
+                        <div>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                            <span style={{ fontSize: '12px', color: 'var(--text-2)' }}>Uploading…</span>
+                            <span style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 500 }}>{uploadProgress}%</span>
+                          </div>
+                          <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+                            <motion.div initial={{ width: 0 }} animate={{ width: `${uploadProgress}%` }} style={{ height: '100%', background: 'linear-gradient(90deg, var(--green-light), var(--gold))', borderRadius: '4px' }} />
+                          </div>
+                        </div>
+                      )}
+
+                      <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                        <button onClick={() => setStep(2)} disabled={uploadStatus === 'uploading'} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: uploadStatus === 'uploading' ? 0.4 : 1 }}><ChevronLeft size={15} /> Back</button>
+                        <button onClick={handleSubmit} disabled={uploadStatus === 'uploading'} className="btn-gold" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: uploadStatus === 'uploading' ? 0.6 : 1 }}>
+                          {uploadStatus === 'uploading' ? 'Uploading…' : 'Submit'}
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            )}
+          </div>
+        </motion.div>
       </motion.div>
-    </motion.div>
+    </AnimatePresence>
   );
 }

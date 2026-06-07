@@ -1,199 +1,264 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { motion } from 'framer-motion';
+import { useState, useEffect, useRef } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import Navbar from '@/components/Navbar';
+import Sidebar from '@/components/sidebar';
 import SemesterBlock from '@/components/SemesterBlock';
+import UploadModal from '@/components/UploadModal';
 import config from '@/config';
 import { CURRICULUM } from '@/data/curriculum';
 
+const fadeUp = {
+  hidden:  { opacity: 0, y: 18 },
+  visible: (i: number = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.5, delay: i * 0.06, ease: [0.22, 1, 0.36, 1] },
+  }),
+};
+
 export default function Home() {
-  const [expandedSemester, setExpandedSemester] = useState<number>(1); // Semester 1 open by default
-  const [mounted, setMounted] = useState(false);
+  const [mounted,          setMounted]         = useState(false);
+  const [menuOpen,         setMenuOpen]        = useState(false);
+  const [uploadOpen,       setUploadOpen]      = useState(false);
+  const [activeSemester,   setActiveSemester]  = useState<number>(1);
+  const [expandedSemester, setExpandedSemester]= useState<number>(1);
+  const [activeCourse,     setActiveCourse]    = useState<string | null>(null);
 
-  // Trigger animations after mount to respect prefers-reduced-motion
-  useEffect(() => {
-    setMounted(true);
-  }, []);
+  // Refs to semester section headings for scroll-into-view
+  const semRefs = useRef<Record<number, HTMLDivElement | null>>({});
 
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.08,
-        delayChildren: 0.2,
-      },
-    },
+  useEffect(() => { setMounted(true); }, []);
+
+  // Scroll to semester section when selected from sidebar
+  const handleSemesterSelect = (sem: number) => {
+    setActiveSemester(sem);
+    setExpandedSemester(sem);
+    const el = semRefs.current[sem];
+    if (el) {
+      setTimeout(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 80);
+    }
   };
 
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { 
-        duration: 0.5,
-        ease: [0.23, 1, 0.82, 1], // custom ease for smoother animation
-      },
-    },
-  };
-
-  const heroGradient = {
-    background: 'linear-gradient(135deg, rgba(26, 74, 46, 0.03) 0%, rgba(212, 168, 83, 0.03) 100%)',
+  // Scroll to course within semester
+  const handleCourseSelect = (semNum: number, code: string) => {
+    setActiveSemester(semNum);
+    setExpandedSemester(semNum);
+    setActiveCourse(code);
+    const el = semRefs.current[semNum];
+    if (el) {
+      setTimeout(() => {
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 80);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-[#f8f7f4]">
-      {/* Hero Section */}
-      <motion.section
-        style={heroGradient}
-        initial={{ opacity: 0, y: -10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
-        className="border-b border-gray-200/40"
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 md:py-24 text-center">
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-          >
-            <h1 className="text-5xl sm:text-6xl md:text-7xl font-bold text-[#2e8b57] mb-4">
-              {config.SITE_NAME}
-            </h1>
-            {/* <p className="text-lg md:text-xl text-gray-700 mb-2">
-              {config.SITE_TAGLINE}
-            </p> */}
-            {/* <p className="text-gray-500 mb-8">
-            </p> */}
-          </motion.div>
+    <>
+      {/* ── App shell ─────────────────────────────────────── */}
+      <div className="app-layout">
 
-          {/* Quick Stats
-          <motion.div
+        {/* ── Sidebar (fixed left on desktop, drawer on mobile) ── */}
+        <Sidebar
+          activeSemester={activeSemester}
+          activeCourse={activeCourse}
+          onSemesterSelect={handleSemesterSelect}
+          onCourseSelect={handleCourseSelect}
+          onUploadClick={() => setUploadOpen(true)}
+          isOpen={menuOpen}
+          onClose={() => setMenuOpen(false)}
+        />
+
+        {/* ── Main area ──────────────────────────────────────── */}
+        <div className="main-content">
+
+          {/* Top navbar (has hamburger on mobile) */}
+          <Navbar
+            onMenuToggle={() => setMenuOpen((v) => !v)}
+            menuOpen={menuOpen}
+          />
+
+          {/* ── Hero ─────────────────────────────────────────── */}
+          <motion.section
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
-            transition={{ duration: 0.6, delay: 0.3 }}
-            className="flex flex-wrap justify-center gap-8 text-sm md:text-base"
+            transition={{ duration: 0.6 }}
+            style={{
+              padding: 'clamp(40px, 6vw, 80px) clamp(20px, 4vw, 48px) clamp(32px, 4vw, 56px)',
+              borderBottom: '1px solid var(--glass-border)',
+              position: 'relative',
+              overflow: 'hidden',
+            }}
           >
-            <div className="flex flex-col items-center">
-              <span className="text-2xl md:text-3xl font-bold text-[#d4a853]">10</span>
-              <span className="text-gray-600">Semesters</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-2xl md:text-3xl font-bold text-[#d4a853]">
-                {config.ALLOWED_FILE_TYPES.length}
-              </span>
-              <span className="text-gray-600">File Types</span>
-            </div>
-            <div className="flex flex-col items-center">
-              <span className="text-2xl md:text-3xl font-bold text-[#d4a853]">∞</span>
-              <span className="text-gray-600">Community</span>
-            </div>
-          </motion.div> */}
-        </div>
-      </motion.section>
+            {/* Decorative glow behind hero text */}
+            <div
+              aria-hidden="true"
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '30%',
+                transform: 'translate(-50%, -50%)',
+                width: '500px',
+                height: '300px',
+                background: 'radial-gradient(ellipse, rgba(45,106,79,0.18) 0%, transparent 70%)',
+                pointerEvents: 'none',
+              }}
+            />
 
-      {/* Main Content */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Section Title */}
-        <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ duration: 0.6, delay: 0.2 }}
-          className="mb-8"
-        >
-          <h2 className="text-3xl md:text-4xl font-bold text-[#2e8b57]">
-            School of Biological Sciences
-          </h2>
-          <p className="text-gray-600 mt-2">
-            Browse study materials by semester ⬇️.
-          </p>
-        </motion.div>
+            <motion.p
+              custom={0} variants={fadeUp} initial="hidden" animate="visible"
+              style={{
+                fontSize: '11px',
+                fontWeight: 500,
+                letterSpacing: '0.18em',
+                textTransform: 'uppercase',
+                color: 'var(--text-3)',
+                marginBottom: '16px',
+              }}
+            >
+              School of Biological Sciences · NISER
+            </motion.p>
 
-        {/* Semester Blocks */}
-        {mounted && (
-          <motion.div
-            variants={containerVariants}
-            initial="hidden"
-            animate="visible"
-            className="space-y-4"
-          >
-            {config.NISER_SEMESTERS.map((semester) => (
-              <motion.div key={semester} variants={itemVariants}>
-                <SemesterBlock
-                  semesterNumber={semester}
-                  courses={CURRICULUM[semester.toString()] || []}
-                  isExpanded={expandedSemester === semester}
-                  onToggle={() =>
-                    setExpandedSemester(expandedSemester === semester ? -1 : semester)
-                  }
-                />
-              </motion.div>
-            ))}
+            <motion.h1
+              custom={1} variants={fadeUp} initial="hidden" animate="visible"
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: 'clamp(36px, 6vw, 72px)',
+                fontWeight: 700,
+                lineHeight: 0.9,
+                letterSpacing: '-0.02em',
+                color: 'var(--text)',
+                marginBottom: '20px',
+              }}
+            >
+              Your notes.{' '}
+              <em style={{ fontStyle: 'italic', color: 'var(--green-bright)' }}>
+                Their foundation.
+              </em>
+            </motion.h1>
 
-            {/* Advanced Courses Block */}
-            <motion.div variants={itemVariants}>
-              <SemesterBlock
-                semesterNumber={-1}
-                label="Advanced Courses"
-                courses={CURRICULUM['ADVANCE COURSES'] || []}
-                isExpanded={expandedSemester === -1}
-                onToggle={() =>
-                  setExpandedSemester(expandedSemester === -1 ? -2 : -1)
-                }
-              />
+            <motion.p
+              custom={2} variants={fadeUp} initial="hidden" animate="visible"
+              style={{
+                fontSize: 'clamp(13px, 1.5vw, 15px)',
+                color: 'var(--text-2)',
+                lineHeight: 1.7,
+                maxWidth: '480px',
+                marginBottom: '32px',
+              }}
+            >
+              A student-built archive of notes, past papers, lab manuals,
+              and slides — organised by semester and course.
+            </motion.p>
+
+            {/* Stat pills */}
+            <motion.div
+              custom={3} variants={fadeUp} initial="hidden" animate="visible"
+              style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}
+            >
+              {[
+                { n: config.NISER_SEMESTERS.length, label: 'Semesters' },
+                { n: Object.values(CURRICULUM).flat().length, label: 'Courses' },
+                { n: config.ALLOWED_FILE_TYPES.length, label: 'File types' },
+              ].map(({ n, label }) => (
+                <div
+                  key={label}
+                  className="glass"
+                  style={{
+                    padding: '8px 16px',
+                    borderRadius: '24px',
+                    display: 'flex',
+                    alignItems: 'baseline',
+                    gap: '6px',
+                  }}
+                >
+                  <span
+                    style={{
+                      fontFamily: "'Cormorant Garamond', serif",
+                      fontSize: '22px',
+                      fontWeight: 700,
+                      color: 'var(--green-bright)',
+                      lineHeight: 1,
+                    }}
+                  >
+                    {n}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--text-2)' }}>{label}</span>
+                </div>
+              ))}
             </motion.div>
-          </motion.div>
-        )}
+          </motion.section>
 
-        {/* Info Section */}
-        {/* <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.5 }}
-          className="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6"
-        >
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-            <div className="text-4xl mb-3">📚</div>
-            <h3 className="text-lg font-bold text-[#1c1c1e] mb-2">Study Materials</h3>
-            <p className="text-gray-600 text-sm">
-              Access question papers, lecture notes, slides, lab manuals, and assignments from your peers.
-            </p>
+          {/* ── Semester blocks ──────────────────────────────── */}
+          <div
+            style={{
+              padding: 'clamp(20px, 3vw, 40px) clamp(20px, 4vw, 48px)',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0',
+            }}
+          >
+            {mounted && (
+              <>
+                {config.NISER_SEMESTERS.map((sem, i) => (
+                  <motion.div
+                    key={sem}
+                    ref={(el) => { semRefs.current[sem] = el; }}
+                    custom={i}
+                    variants={fadeUp}
+                    initial="hidden"
+                    animate="visible"
+                  >
+                    <SemesterBlock
+                      semesterNumber={sem}
+                      courses={CURRICULUM[sem.toString()] || []}
+                      isExpanded={expandedSemester === sem}
+                      activeCourse={activeSemester === sem ? activeCourse : null}
+                      onToggle={() =>
+                        setExpandedSemester(expandedSemester === sem ? -99 : sem)
+                      }
+                      onCourseActivate={(code) => {
+                        setActiveCourse(code);
+                        setActiveSemester(sem);
+                      }}
+                    />
+                  </motion.div>
+                ))}
+
+                {/* Advanced */}
+                <motion.div
+                  ref={(el) => { semRefs.current[-1] = el; }}
+                  custom={config.NISER_SEMESTERS.length}
+                  variants={fadeUp}
+                  initial="hidden"
+                  animate="visible"
+                >
+                  <SemesterBlock
+                    semesterNumber={-1}
+                    label="Advanced Courses"
+                    courses={CURRICULUM['ADVANCE COURSES'] || []}
+                    isExpanded={expandedSemester === -1}
+                    activeCourse={activeSemester === -1 ? activeCourse : null}
+                    onToggle={() =>
+                      setExpandedSemester(expandedSemester === -1 ? -99 : -1)
+                    }
+                    onCourseActivate={(code) => {
+                      setActiveCourse(code);
+                      setActiveSemester(-1);
+                    }}
+                  />
+                </motion.div>
+              </>
+            )}
           </div>
-
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-            <div className="text-4xl mb-3">🤝</div>
-            <h3 className="text-lg font-bold text-[#1c1c1e] mb-2">Community Driven</h3>
-            <p className="text-gray-600 text-sm">
-              Contribute your own materials and help fellow students. All contributors are credited.
-            </p>
-          </div>
-
-          <div className="bg-white rounded-xl p-6 shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
-            <div className="text-4xl mb-3">🔍</div>
-            <h3 className="text-lg font-bold text-[#1c1c1e] mb-2">Easy Discovery</h3>
-            <p className="text-gray-600 text-sm">
-              Find resources by semester, course, or file type. Filter and search at your convenience.
-            </p>
-          </div>
-        </motion.section> */}
-
-        {/* CTA Section */}
-        <motion.section
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.6, delay: 0.6 }}
-          className="mt-12 bg-gradient-to-r from-[#1a4a2e] to-[#0f2f1e] rounded-xl p-8 text-white text-center"
-        >
-          <h3 className="text-2xl font-bold mb-3">Ready to share your materials?</h3>
-          <p className="text-blue-100 mb-6">
-            Upload your study materials using the Upload button above. Just a few clicks to help your Juniors!
-          </p>
-          <p className="text-sm text-blue-200">
-            ✓ PDF • PPTX • DOCX • XLSX • ZIP • PNG • JPG • JPEG  formats supported (up to 100MB/file)
-          </p>
-        </motion.section>
+        </div>
       </div>
-    </div>
+
+      {/* Upload modal (triggered from sidebar or navbar) */}
+      <UploadModal isOpen={uploadOpen} onClose={() => setUploadOpen(false)} />
+    </>
   );
 }

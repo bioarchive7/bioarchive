@@ -1,67 +1,114 @@
-/**
- * Navbar component
- * Main navigation component for BioArchive
- */
-
 'use client';
 
 import { useState } from 'react';
-import { motion } from 'framer-motion';
-import { Upload } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { Upload, X } from 'lucide-react';
 import UploadModal from './UploadModal';
 
-export default function Navbar() {
-  const [isUploadOpen, setIsUploadOpen] = useState(false);
+interface NavbarProps {
+  onMenuToggle?: () => void;
+  menuOpen?: boolean;
+}
 
-  const navVariants = {
-    hidden: { opacity: 0, y: -10 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: { duration: 0.5 },
-    },
-  };
+export default function Navbar({ onMenuToggle, menuOpen }: NavbarProps) {
+  const [isUploadOpen, setIsUploadOpen] = useState(false);
 
   return (
     <>
       <motion.nav
-        initial="hidden"
-        animate="visible"
-        variants={navVariants}
-        className="fixed top-0 left-0 right-0 z-40 bg-white/80 backdrop-blur-md border-b border-gray-200/30"
+        initial={{ opacity: 0, y: -6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.22, 1, 0.36, 1] }}
+        style={{
+          position: 'sticky',
+          top: 0,
+          zIndex: 20,
+          height: 'var(--nav-h)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          padding: '0 20px',
+          background: 'rgba(10,26,15,0.75)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderBottom: '1px solid var(--glass-border)',
+        }}
       >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            {/* Logo */}
-            <motion.div
-              whileHover={{ scale: 1.05 }}
-              className="flex items-center gap-2 cursor-pointer"
-            >
-              <div className="w-8 h-8 bg-[#1a4a2e] rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">B</span>
-              </div>
-              <h1 className="text-xl font-bold text-[#1a4a2e]">BioArchive</h1>
-            </motion.div>
+        {/* Left: hamburger (mobile) + wordmark */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* Hamburger — only visible on mobile via CSS */}
+          <button
+            className={`ham-btn ${menuOpen ? 'open' : ''}`}
+            onClick={onMenuToggle}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+          >
+            <span className="ham-line" />
+            <span className="ham-line" />
+            <span className="ham-line" />
+          </button>
 
-            {/* Upload Button */}
-            <motion.button
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setIsUploadOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 bg-[#d4a853] text-white font-medium rounded-full hover:bg-amber-600 transition-colors shadow-sm"
+          {/* Wordmark */}
+          <a
+            href="/"
+            style={{ textDecoration: 'none', display: 'flex', alignItems: 'baseline', gap: '1px' }}
+          >
+            <span
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: '22px',
+                fontWeight: 700,
+                fontStyle: 'italic',
+                color: 'var(--green-bright)',
+                letterSpacing: '-0.01em',
+                lineHeight: 1,
+              }}
             >
-              <Upload size={18} />
-              <span className="hidden sm:inline">Upload</span>
-            </motion.button>
-          </div>
+              Bio
+            </span>
+            <span
+              style={{
+                fontFamily: "'Cormorant Garamond', serif",
+                fontSize: '22px',
+                fontWeight: 600,
+                color: 'var(--text)',
+                letterSpacing: '-0.01em',
+                lineHeight: 1,
+              }}
+            >
+              Archive
+            </span>
+          </a>
+        </div>
+
+        {/* Right: NISER tag + upload */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <span
+            style={{
+              fontSize: '10px',
+              fontWeight: 500,
+              letterSpacing: '0.15em',
+              textTransform: 'uppercase',
+              color: 'var(--text-3)',
+            }}
+            className="niser-tag"
+          >
+            NISER · Bio Sciences
+          </span>
+
+          <motion.button
+            whileHover={{ scale: 1.04 }}
+            whileTap={{ scale: 0.96 }}
+            onClick={() => setIsUploadOpen(true)}
+            className="btn-gold"
+            style={{ fontSize: '13px' }}
+          >
+            <Upload size={14} strokeWidth={2.2} />
+            <span>Upload</span>
+          </motion.button>
         </div>
       </motion.nav>
 
-      {/* Upload Modal */}
       <UploadModal isOpen={isUploadOpen} onClose={() => setIsUploadOpen(false)} />
-
-      {/* Spacer to prevent content from hiding under fixed nav */}
-      <div className="h-16" />
     </>
   );
 }
