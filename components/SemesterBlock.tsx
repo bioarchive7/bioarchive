@@ -20,9 +20,7 @@ export default function SemesterBlock({
   label,
   courses,
   isExpanded = false,
-  activeCourse,
   onToggle,
-  onCourseActivate,
 }: SemesterBlockProps) {
   const shortLabel = label
     ? 'ADV'
