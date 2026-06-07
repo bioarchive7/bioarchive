@@ -212,7 +212,6 @@ body {
   flex-direction: column;
   /* width: calc(100%-var(--sidebar-w)); */
   overflow-x: hidden;
-  min-width: 0;
 }
 
 /* ─── Semester accordion ────────────────────────────────────── */
