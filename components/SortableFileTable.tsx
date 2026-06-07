@@ -115,7 +115,7 @@ export default function SortableFileTable({
               return (
                 <button
                   key={col.key}
-                  onClick={() => col.sortable && onSort(col.key)}
+                  onClick={() => col.sortable && col.key !== 'actions' && onSort(col.key as SortField)}
                   style={{
                     textAlign: 'left',
                     background: 'transparent',
