@@ -21,17 +21,16 @@ interface SortableFileTableProps {
 }
 
 const COLUMNS: { key: SortField | 'actions'; label: string; width: string; sortable: boolean }[] = [
-  { key: 'fileName', label: 'File Name', width: '32%', sortable: true },
-  { key: 'professor', label: 'Professor', width: '20%', sortable: true },
+  { key: 'fileName', label: 'File Name', width: '40%', sortable: true },
+  { key: 'professor', label: 'Professor', width: '25%', sortable: true },
   { key: 'year', label: 'Year', width: '12%', sortable: true },
-  { key: 'examType', label: 'Type', width: '15%', sortable: true },
-  { key: 'downloadCount', label: 'Downloads', width: '10%', sortable: true },
-  { key: 'actions', label: '', width: '11%', sortable: false }, // Actions column
+  { key: 'downloadCount', label: 'Downloads', width: '13%', sortable: true },
+  { key: 'actions', label: '', width: '10%', sortable: false }, // Actions column
 ];
 
 export default function SortableFileTable({
   files,
-//   fileType,
+  fileType,
   sortField,
   sortOrder,
   onSort,
@@ -247,24 +246,6 @@ export default function SortableFileTable({
                     >
                       {getYearFromFileName(file.fileName)}
                     </p>
-                  </div>
-
-                  {/* Exam Type */}
-                  <div>
-                    <span
-                      style={{
-                        fontSize: '11px',
-                        fontWeight: 500,
-                        color: examTypeColors.text,
-                        backgroundColor: examTypeColors.bg,
-                        padding: '3px 6px',
-                        borderRadius: '4px',
-                        whiteSpace: 'nowrap',
-                        display: 'inline-block',
-                      }}
-                    >
-                      {formatExamType(file.examType)}
-                    </span>
                   </div>
 
                   {/* Downloads */}
