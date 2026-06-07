@@ -92,7 +92,7 @@ export default function Navbar({ onMenuToggle, menuOpen }: NavbarProps) {
             }}
             className="niser-tag"
           >
-            NISER · Bio Sciences
+            NISER · SBS
           </span>
 
           <motion.button

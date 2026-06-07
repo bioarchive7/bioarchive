@@ -134,9 +134,9 @@ export default function Home() {
                 marginBottom: '20px',
               }}
             >
-              Your notes.{' '}
+              BIO{' '}
               <em style={{ fontStyle: 'italic', color: 'var(--green-bright)' }}>
-                Their foundation.
+                Archive
               </em>
             </motion.h1>
 
@@ -150,11 +150,9 @@ export default function Home() {
                 marginBottom: '32px',
               }}
             >
-              A student-built archive of notes, past papers, lab manuals,
-              and slides — organised by semester and course.
             </motion.p>
 
-            {/* Stat pills */}
+            {/* Stat pills
             <motion.div
               custom={3} variants={fadeUp} initial="hidden" animate="visible"
               style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}
@@ -189,7 +187,7 @@ export default function Home() {
                   <span style={{ fontSize: '11px', color: 'var(--text-2)' }}>{label}</span>
                 </div>
               ))}
-            </motion.div>
+            </motion.div> */}
           </motion.section>
 
           {/* ── Semester blocks ──────────────────────────────── */}

@@ -149,7 +149,7 @@ export default function Sidebar({
         </div>
 
         {/* ── Quick stats ─────────────────────────────────────── */}
-        <div
+        {/* <div
           style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
@@ -196,7 +196,7 @@ export default function Sidebar({
               </span>
             </div>
           ))}
-        </div>
+        </div> */}
 
         {/* ── Search ──────────────────────────────────────────── */}
         <div style={{ padding: '12px 14px', borderBottom: '1px solid var(--glass-border)', flexShrink: 0 }}>

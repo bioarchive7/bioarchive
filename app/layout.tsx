@@ -4,7 +4,6 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: `BioArchive | NISER Biology Resources`,
-  description: 'Student-built archive of notes, past papers, and slides for every semester of the NISER biology programme.',
   robots: { index: true, follow: true },
 };
 
@@ -55,7 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               }}
             >
               <div>
-                <p style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '20px', fontWeight: 700, fontStyle: 'italic', color: 'var(--green-bright)', marginBottom: '10px' }}>
+                <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '10px' }}>
                   BioArchive
                 </p>
                 <p style={{ fontSize: '12px', color: 'var(--text-2)', lineHeight: 1.7 }}>
@@ -82,13 +81,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   rel="noopener noreferrer"
                   style={{ fontSize: '12px', color: 'var(--green-bright)', textDecoration: 'underline', display: 'block', marginBottom: '6px' }}
                 >
-                  Report an issue →
-                </a>
-                <a
-                  href="mailto:bioarchive007@gmail.com"
-                  style={{ fontSize: '12px', color: 'var(--green-bright)', textDecoration: 'underline' }}
-                >
-                  bioarchive007@gmail.com
+                  Report an issue 📝
                 </a>
               </div>
             </div>
@@ -98,7 +91,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 © 2026 BioArchive · NISER
               </p>
               <p style={{ fontSize: '11px', color: 'var(--text-3)' }}>
-                Made by students, for students.
+                <a
+                  href="mailto:bioarchive007@gmail.com"
+                  style={{ fontSize: '12px', color: 'var(--green-bright)', textDecoration: 'underline' }}
+                >
+                  Contact: bioarchive007@gmail.com
+                </a>
               </p>
             </div>
           </footer>
