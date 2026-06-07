@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown } from 'lucide-react';
 import { Course } from '@/data/curriculum';
@@ -25,15 +24,6 @@ export default function SemesterBlock({
   onToggle,
   onCourseActivate,
 }: SemesterBlockProps) {
-  const [expandedCourse, setExpandedCourse] = useState<string | null>(null);
-
-  // Sync expanded with active course sidebars
-  useEffect(() => {
-    if (activeCourse && courses.find((c) => c.code === activeCourse)) {
-      setExpandedCourse(activeCourse);
-    }
-  }, [activeCourse, courses]);
-
   const shortLabel = label
     ? 'ADV'
     : `S${semesterNumber < 10 ? `0${semesterNumber}` : semesterNumber}`;
@@ -141,12 +131,6 @@ export default function SemesterBlock({
                   <CourseCard
                     course={course}
                     semester={semesterNumber}
-                    isExpanded={expandedCourse === course.code}
-                    onToggle={() => {
-                      const next = expandedCourse === course.code ? null : course.code;
-                      setExpandedCourse(next);
-                      if (next) onCourseActivate?.(next);
-                    }}
                   />
                 </motion.div>
               ))}
