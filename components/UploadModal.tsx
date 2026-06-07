@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, CheckCircle, AlertCircle, ChevronRight, ChevronLeft } from 'lucide-react';
 import { CURRICULUM } from '@/data/curriculum';
@@ -145,380 +146,407 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
     exit:    { opacity: 0, y: -8 },
   };
 
-  if (!isOpen) return null;
+  // ─── Portal to document.body ──────────────────────────────────────────────
+  //
+  // WHY: layout.tsx applies `transform: translateY(8px)` to `#page-content`
+  // for the page-reveal animation. Any CSS `transform` on an ancestor creates
+  // a new containing block for `position: fixed` descendants, which means the
+  // modal would position itself relative to the transformed div instead of the
+  // real viewport — causing the off-centre placement the user reported.
+  //
+  // By portalling directly to <body> (which never has a transform), the
+  // backdrop's `position: fixed; inset: 0` always covers the exact viewport,
+  // and the dialog is always centred in the visible area regardless of scroll.
+  //
+  // SSR guard: `typeof window === 'undefined'` prevents createPortal being
+  // called during server-side rendering where document is not available.
+  // ─────────────────────────────────────────────────────────────────────────
+  if (typeof window === 'undefined') return null;
 
-  // Open UploadModal.tsx and update the style properties of the outermost motion.div (the backdrop overlay)
-
-  return (
+  return createPortal(
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        onClick={handleClose}
-        style={{
-          position: 'fixed',
-          top: 0,                   /* FIX: Hard anchors overlay to screen top */
-          left: 0,                  /* FIX: Hard anchors overlay to screen left */
-          width: '100vw',           /* FIX: Enforce exact screen width */
-          height: '100vh',          /* FIX: Enforce exact screen height */
-          background: 'rgba(0,0,0,0.75)',
-          backdropFilter: 'blur(10px)',
-          display: 'flex',
-          alignItems: 'center',     /* Vertically centers the dialog box in viewport */
-          justifyContent: 'center',  /* Horizontally centers the dialog box in viewport */
-          zIndex: 100,              /* Keeps it reliably above your sticky Navbar and Sidebar */
-          padding: '16px',
-        }}
-      >
+      {isOpen && (
         <motion.div
-          initial={{ scale: 0.96, opacity: 0, y: 16 }}
-          animate={{ scale: 1, opacity: 1, y: 0 }}
-          exit={{ scale: 0.96, opacity: 0, y: 8 }}
-          transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-          onClick={(e) => e.stopPropagation()}
+          key="upload-backdrop"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.22 }}
+          onClick={handleClose}
           style={{
-            background: 'rgba(10,26,15,0.96)',
-            border: '1px solid rgba(116,198,157,0.2)',
-            borderRadius: '18px',
-            maxWidth: '520px',
-            width: '100%',
-            maxHeight: 'calc(100vh - 32px)',
+            position: 'fixed',
+            inset: 0,                       // covers exact viewport always
+            background: 'rgba(0,0,0,0.75)',
+            backdropFilter: 'blur(10px)',
+            WebkitBackdropFilter: 'blur(10px)',
             display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden',
-            backdropFilter: 'blur(24px)',
-            boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,                   // well above sidebar (z-index: 30) and navbar (z-index: 20)
+            padding: '16px',
           }}
         >
-        {/* ... keeping the rest of your inner code exactly identical ... */}
-          {/* Header Block */}
-          <div
+          <motion.div
+            key="upload-dialog"
+            initial={{ scale: 0.96, opacity: 0, y: 16 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.96, opacity: 0, y: 8 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            onClick={(e) => e.stopPropagation()}
             style={{
-              padding: '20px 22px 16px',
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
+              background: 'rgba(10,26,15,0.96)',
+              border: '1px solid rgba(116,198,157,0.2)',
+              borderRadius: '18px',
+              maxWidth: '520px',
+              width: '100%',
+              maxHeight: 'calc(100vh - 32px)',
               display: 'flex',
-              alignItems: 'flex-start',
-              justifyContent: 'space-between',
-              background: 'rgba(10,26,15,0.98)',
-              borderRadius: '18px 18px 0 0',
-              flexShrink: 0,
-              zIndex: 1,
+              flexDirection: 'column',
+              overflow: 'hidden',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
+              boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
             }}
           >
-            <div>
-              <h2
-                style={{
-                  fontFamily: "'Cormorant Garamond', serif",
-                  fontSize: '22px',
-                  fontWeight: 700,
-                  color: 'var(--text)',
-                  letterSpacing: '-0.01em',
-                  marginBottom: '3px',
-                }}
-              >
-                Upload Study Material
-              </h2>
-              <p style={{ fontSize: '12px', color: 'var(--text-3)' }}>
-                Step {step} of 3 —{' '}
-                {step === 1 ? 'Course Details' : step === 2 ? 'File Details' : 'Your Info'}
-              </p>
-            </div>
-            <button
-              onClick={handleClose}
+            {/* ── Header ──────────────────────────────────────────── */}
+            <div
               style={{
-                width: '32px', height: '32px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                background: 'rgba(255,255,255,0.06)',
-                border: '1px solid rgba(255,255,255,0.1)',
-                borderRadius: '8px', cursor: 'pointer',
-                color: 'var(--text-2)',
+                padding: '20px 22px 16px',
+                borderBottom: '1px solid rgba(255,255,255,0.06)',
+                display: 'flex',
+                alignItems: 'flex-start',
+                justifyContent: 'space-between',
+                background: 'rgba(10,26,15,0.98)',
+                borderRadius: '18px 18px 0 0',
+                flexShrink: 0,
+                zIndex: 1,
               }}
             >
-              <X size={15} strokeWidth={2} />
-            </button>
-          </div>
-
-          <div style={{ height: '2px', background: 'rgba(255,255,255,0.06)', flexShrink: 0 }}>
-            <motion.div
-              animate={{ width: `${(step / 3) * 100}%` }}
-              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-              style={{
-                height: '100%',
-                background: 'linear-gradient(90deg, var(--green-light), var(--gold))',
-              }}
-            />
-          </div>
-
-          {/* Scrollable Form Body Container */}
-          <div style={{ padding: '22px', overflowY: 'auto', flex: 1 }}>
-            {(uploadStatus === 'success' || uploadStatus === 'duplicate' || uploadStatus === 'error') && (
-              <motion.div
-                initial={{ opacity: 0, scale: 0.95 }}
-                animate={{ opacity: 1, scale: 1 }}
-                style={{ textAlign: 'center', padding: '32px 16px' }}
+              <div>
+                <h2
+                  style={{
+                    fontFamily: "'Cormorant Garamond', serif",
+                    fontSize: '22px',
+                    fontWeight: 700,
+                    color: 'var(--text)',
+                    letterSpacing: '-0.01em',
+                    marginBottom: '3px',
+                  }}
+                >
+                  Upload Study Material
+                </h2>
+                <p style={{ fontSize: '12px', color: 'var(--text-3)' }}>
+                  Step {step} of 3 —{' '}
+                  {step === 1 ? 'Course Details' : step === 2 ? 'File Details' : 'Your Info'}
+                </p>
+              </div>
+              <button
+                onClick={handleClose}
+                style={{
+                  width: '32px', height: '32px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  background: 'rgba(255,255,255,0.06)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  borderRadius: '8px', cursor: 'pointer',
+                  color: 'var(--text-2)',
+                }}
               >
-                {uploadStatus === 'success' && (
-                  <>
-                    <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 300 }}>
-                      <CheckCircle size={48} style={{ margin: '0 auto 16px', color: 'var(--green-bright)' }} />
-                    </motion.div>
-                    <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '20px', fontWeight: 700, color: 'var(--green-bright)', marginBottom: '8px' }}>
-                      Upload Successful!
-                    </h3>
-                    <p style={{ fontSize: '13px', color: 'var(--text-2)' }}>{uploadMessage}</p>
-                  </>
-                )}
-                {uploadStatus === 'duplicate' && (
-                  <>
-                    <AlertCircle size={48} style={{ margin: '0 auto 16px', color: 'var(--gold)' }} />
-                    <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '20px', fontWeight: 700, color: 'var(--gold)', marginBottom: '8px' }}>
-                      Duplicate Detected
-                    </h3>
-                    <p style={{ fontSize: '13px', color: 'var(--text-2)' }}>{uploadMessage}</p>
-                  </>
-                )}
-                {uploadStatus === 'error' && (
-                  <>
-                    <AlertCircle size={48} style={{ margin: '0 auto 16px', color: '#fca5a5' }} />
-                    <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '20px', fontWeight: 700, color: '#fca5a5', marginBottom: '8px' }}>
-                      Upload Failed
-                    </h3>
-                    <p style={{ fontSize: '13px', color: 'var(--text-2)', marginBottom: '16px' }}>{uploadMessage}</p>
-                    <button
-                      onClick={() => setUploadStatus('idle')}
-                      className="btn-gold"
-                      style={{ borderRadius: '10px' }}
-                    >
-                      Try Again
-                    </button>
-                  </>
-                )}
-              </motion.div>
-            )}
+                <X size={15} strokeWidth={2} />
+              </button>
+            </div>
 
-            {uploadStatus !== 'success' && uploadStatus !== 'duplicate' && (
-              <AnimatePresence mode="wait">
-                {step === 1 && (
-                  <motion.div key="s1" variants={contentVar} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.22 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <div>
-                        <label style={labelStyle}>Semester <span style={{ color: '#fca5a5' }}>*</span></label>
-                        <select
-                          value={semester}
-                          onChange={(e) => { setSemester(e.target.value); setCourseCode(''); setCourseName(''); setProfessor(''); }}
-                          style={{ ...inputStyle, appearance: 'none' }}
-                          onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')}
-                          onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
-                        >
-                          <option value="" style={{ background: '#0a1a0f' }}>Select Semester</option>
-                          {config.NISER_SEMESTERS.map((s) => (
-                            <option key={s} value={s} style={{ background: '#0a1a0f' }}>Semester {s}</option>
-                          ))}
-                          <option value="ADVANCE COURSES" style={{ background: '#0a1a0f' }}>Advanced Courses</option>
-                        </select>
-                      </div>
+            {/* ── Progress bar ────────────────────────────────────── */}
+            <div style={{ height: '2px', background: 'rgba(255,255,255,0.06)', flexShrink: 0 }}>
+              <motion.div
+                animate={{ width: `${(step / 3) * 100}%` }}
+                transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                style={{
+                  height: '100%',
+                  background: 'linear-gradient(90deg, var(--green-light), var(--gold))',
+                }}
+              />
+            </div>
 
-                      <div>
-                        <label style={labelStyle}>Course <span style={{ color: '#fca5a5' }}>*</span></label>
-                        <select
-                          value={courseCode}
-                          onChange={(e) => { const s = courses.find((c) => c.code === e.target.value); setCourseCode(e.target.value); setCourseName(s?.name || ''); setProfessor(''); }}
-                          disabled={!semester}
-                          style={{ ...inputStyle, opacity: semester ? 1 : 0.5, appearance: 'none' }}
-                          onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')}
-                          onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
-                        >
-                          <option value="" style={{ background: '#0a1a0f' }}>Select Course</option>
-                          {courses.map((c) => (
-                            <option key={c.code} value={c.code} style={{ background: '#0a1a0f' }}>{c.code} — {c.name}</option>
-                          ))}
-                        </select>
-                      </div>
+            {/* ── Scrollable body ──────────────────────────────────── */}
+            <div style={{ padding: '22px', overflowY: 'auto', flex: 1 }}>
 
-                      <div>
-                        <label style={labelStyle}>Professor <span style={{ color: '#fca5a5' }}>*</span></label>
-                        <select
-                          value={professor}
-                          onChange={(e) => setProfessor(e.target.value)}
-                          disabled={!courseCode}
-                          style={{ ...inputStyle, opacity: courseCode ? 1 : 0.5, appearance: 'none' }}
-                          onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')}
-                          onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
-                        >
-                          <option value="" style={{ background: '#0a1a0f' }}>{courseCode ? 'Select Professor' : 'Select a course first'}</option>
-                          {professors.map((p) => (
-                            <option key={p} value={p} style={{ background: '#0a1a0f' }}>{p}</option>
-                          ))}
-                        </select>
-                      </div>
+              {/* Status screens */}
+              {(uploadStatus === 'success' || uploadStatus === 'duplicate' || uploadStatus === 'error') && (
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  style={{ textAlign: 'center', padding: '32px 16px' }}
+                >
+                  {uploadStatus === 'success' && (
+                    <>
+                      <motion.div initial={{ scale: 0 }} animate={{ scale: 1 }} transition={{ type: 'spring', stiffness: 300 }}>
+                        <CheckCircle size={48} style={{ margin: '0 auto 16px', color: 'var(--green-bright)' }} />
+                      </motion.div>
+                      <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '20px', fontWeight: 700, color: 'var(--green-bright)', marginBottom: '8px' }}>
+                        Upload Successful!
+                      </h3>
+                      <p style={{ fontSize: '13px', color: 'var(--text-2)' }}>{uploadMessage}</p>
+                    </>
+                  )}
+                  {uploadStatus === 'duplicate' && (
+                    <>
+                      <AlertCircle size={48} style={{ margin: '0 auto 16px', color: 'var(--gold)' }} />
+                      <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '20px', fontWeight: 700, color: 'var(--gold)', marginBottom: '8px' }}>
+                        Duplicate Detected
+                      </h3>
+                      <p style={{ fontSize: '13px', color: 'var(--text-2)' }}>{uploadMessage}</p>
+                    </>
+                  )}
+                  {uploadStatus === 'error' && (
+                    <>
+                      <AlertCircle size={48} style={{ margin: '0 auto 16px', color: '#fca5a5' }} />
+                      <h3 style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '20px', fontWeight: 700, color: '#fca5a5', marginBottom: '8px' }}>
+                        Upload Failed
+                      </h3>
+                      <p style={{ fontSize: '13px', color: 'var(--text-2)', marginBottom: '16px' }}>{uploadMessage}</p>
+                      <button onClick={() => setUploadStatus('idle')} className="btn-gold" style={{ borderRadius: '10px' }}>
+                        Try Again
+                      </button>
+                    </>
+                  )}
+                </motion.div>
+              )}
 
-                      <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-                        <button onClick={handleClose} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px' }}>Cancel</button>
-                        <button onClick={() => setStep(2)} disabled={!canStep1} className="btn-gold" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: canStep1 ? 1 : 0.4, cursor: canStep1 ? 'pointer' : 'not-allowed' }}>
-                          Next <ChevronRight size={15} />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
+              {/* Step forms */}
+              {uploadStatus !== 'success' && uploadStatus !== 'duplicate' && (
+                <AnimatePresence mode="wait">
 
-                {step === 2 && (
-                  <motion.div key="s2" variants={contentVar} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.22 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <div>
-                        <label style={labelStyle}>File Type <span style={{ color: '#fca5a5' }}>*</span></label>
-                        <select
-                          value={fileType}
-                          onChange={(e) => { setFileType(e.target.value); setExamType(''); }}
-                          style={{ ...inputStyle, appearance: 'none' }}
-                          onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')}
-                          onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
-                        >
-                          <option value="" style={{ background: '#0a1a0f' }}>Select File Type</option>
-                          {['qpaper','notes','slides','lab','assignment','other'].map((t) => (
-                            <option key={t} value={t} style={{ background: '#0a1a0f' }}>
-                              {{ qpaper:'Question Paper', notes:'Notes', slides:'Slides', lab:'Lab Manual', assignment:'Assignment', other:'Other' }[t]}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-
-                      {fileType === 'qpaper' && (
-                        <AnimatePresence>
-                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
-                            <label style={labelStyle}>Exam Type <span style={{ color: '#fca5a5' }}>*</span></label>
-                            <select value={examType} onChange={(e) => setExamType(e.target.value)} style={{ ...inputStyle, appearance: 'none' }} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}>
-                              <option value="" style={{ background: '#0a1a0f' }}>Select Exam Type</option>
-                              {EXAM_TYPES.map((et) => <option key={et.value} value={et.value} style={{ background: '#0a1a0f' }}>{et.label}</option>)}
-                            </select>
-                          </motion.div>
-                          <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginTop: '12px' }}>
-                            <label style={labelStyle}>Year <span style={{ color: '#fca5a5' }}>*</span></label>
-                            <input type="number" value={year} onChange={(e) => setYear(e.target.value)} placeholder="e.g. 2023" min="2000" max={new Date().getFullYear()} style={inputStyle} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')} />
-                          </motion.div>
-                        </AnimatePresence>
-                      )}
-
-                      <div>
-                        <label style={labelStyle}>File <span style={{ color: '#fca5a5' }}>*</span></label>
-                        <div
-                          onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
-                          onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleFileSelect(e.dataTransfer.files[0]); }}
-                          onClick={() => fileInputRef.current?.click()}
-                          style={{
-                            border: '1px dashed rgba(212,168,83,0.4)',
-                            borderRadius: '12px',
-                            padding: '28px',
-                            textAlign: 'center',
-                            cursor: 'pointer',
-                            background: 'rgba(212,168,83,0.04)',
-                            transition: 'background 0.2s',
-                          }}
-                          onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = 'rgba(212,168,83,0.08)')}
-                          onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.background = 'rgba(212,168,83,0.04)')}
-                        >
-                          <Upload size={28} style={{ margin: '0 auto 8px', color: 'var(--gold)' }} />
-                          <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-2)', marginBottom: '4px' }}>
-                            Drag and drop or click to select
-                          </p>
-                          <p style={{ fontSize: '11px', color: 'var(--text-3)' }}>
-                            {config.ALLOWED_FILE_TYPES.map((t) => `.${t}`).join(', ')} · Max {config.MAX_UPLOAD_SIZE_MB}MB
-                          </p>
-                          <input ref={fileInputRef} type="file" onChange={(e) => handleFileSelect(e.target.files?.[0] || null)} style={{ display: 'none' }} />
-                        </div>
-
-                        {uploadedFile && (
-                          <motion.div
-                            initial={{ opacity: 0, y: 6 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            style={{
-                              marginTop: '10px',
-                              padding: '10px 14px',
-                              background: 'rgba(82,183,136,0.1)',
-                              border: '1px solid rgba(82,183,136,0.25)',
-                              borderRadius: '10px',
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              gap: '10px',
-                            }}
-                          >
-                            <div>
-                              <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--green-bright)', marginBottom: '2px' }}>{uploadedFile.name}</p>
-                              <p style={{ fontSize: '11px', color: 'var(--text-3)' }}>{formatFileSize(uploadedFile.size)}</p>
-                            </div>
-                            <button onClick={() => setUploadedFile(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-3)' }}>
-                              <X size={15} />
-                            </button>
-                          </motion.div>
-                        )}
-                      </div>
-
-                      {uploadStatus === 'error' && (
-                        <p style={{ fontSize: '12px', color: '#fca5a5', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '10px 12px' }}>
-                          {uploadMessage}
-                        </p>
-                      )}
-
-                      <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-                        <button onClick={() => setStep(1)} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px' }}><ChevronLeft size={15} /> Back</button>
-                        <button onClick={() => setStep(3)} disabled={!canStep2} className="btn-gold" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: canStep2 ? 1 : 0.4, cursor: canStep2 ? 'pointer' : 'not-allowed' }}>
-                          Next <ChevronRight size={15} />
-                        </button>
-                      </div>
-                    </div>
-                  </motion.div>
-                )}
-
-                {step === 3 && (
-                  <motion.div key="s3" variants={contentVar} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.22 }}>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                      <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', fontSize: '12px', lineHeight: 1.7 }}>
-                        <p style={{ fontWeight: 600, color: 'var(--green-bright)', marginBottom: '6px', letterSpacing: '0.04em' }}>Upload Summary</p>
-                        {[['Course', `${courseCode} — ${courseName}`], ['Professor', professor], ['Type', `${fileType}${examType ? ` (${EXAM_TYPES.find((e) => e.value === examType)?.label})` : ''}${year ? ` · ${year}` : ''}`], ['File', uploadedFile?.name || '']].map(([k, v]) => (
-                          <p key={k}><span style={{ color: 'var(--text-3)' }}>{k}:</span> <span style={{ color: 'var(--text-2)' }}>{v}</span></p>
-                        ))}
-                      </div>
-
-                      <div>
-                        <label style={labelStyle}>Your Name <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
-                        <input type="text" value={uploaderName} onChange={(e) => setUploaderName(e.target.value)} placeholder="Leave blank to stay anonymous" style={inputStyle} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')} />
-                      </div>
-
-                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 14px', background: 'rgba(116,198,157,0.06)', border: '1px solid rgba(116,198,157,0.15)', borderRadius: '10px' }}>
-                        <input type="checkbox" id="consent" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ marginTop: '2px', accentColor: 'var(--green-bright)', width: '14px', height: '14px' }} />
-                        <label htmlFor="consent" style={{ fontSize: '12px', color: 'var(--text-2)', cursor: 'pointer', lineHeight: 1.5 }}>
-                          I consent to having my name displayed with this upload
-                        </label>
-                      </div>
-
-                      {uploadStatus === 'uploading' && (
+                  {/* Step 1: Course details */}
+                  {step === 1 && (
+                    <motion.div key="s1" variants={contentVar} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.22 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                         <div>
-                          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
-                            <span style={{ fontSize: '12px', color: 'var(--text-2)' }}>Uploading…</span>
-                            <span style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 500 }}>{uploadProgress}%</span>
-                          </div>
-                          <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
-                            <motion.div initial={{ width: 0 }} animate={{ width: `${uploadProgress}%` }} style={{ height: '100%', background: 'linear-gradient(90deg, var(--green-light), var(--gold))', borderRadius: '4px' }} />
-                          </div>
+                          <label style={labelStyle}>Semester <span style={{ color: '#fca5a5' }}>*</span></label>
+                          <select
+                            value={semester}
+                            onChange={(e) => { setSemester(e.target.value); setCourseCode(''); setCourseName(''); setProfessor(''); }}
+                            style={{ ...inputStyle, appearance: 'none' }}
+                            onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')}
+                            onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+                          >
+                            <option value="" style={{ background: '#0a1a0f' }}>Select Semester</option>
+                            {config.NISER_SEMESTERS.map((s) => (
+                              <option key={s} value={s} style={{ background: '#0a1a0f' }}>Semester {s}</option>
+                            ))}
+                            <option value="ADVANCE COURSES" style={{ background: '#0a1a0f' }}>Advanced Courses</option>
+                          </select>
                         </div>
-                      )}
 
-                      <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
-                        <button onClick={() => setStep(2)} disabled={uploadStatus === 'uploading'} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: uploadStatus === 'uploading' ? 0.4 : 1 }}><ChevronLeft size={15} /> Back</button>
-                        <button onClick={handleSubmit} disabled={uploadStatus === 'uploading'} className="btn-gold" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: uploadStatus === 'uploading' ? 0.6 : 1 }}>
-                          {uploadStatus === 'uploading' ? 'Uploading…' : 'Submit'}
-                        </button>
+                        <div>
+                          <label style={labelStyle}>Course <span style={{ color: '#fca5a5' }}>*</span></label>
+                          <select
+                            value={courseCode}
+                            onChange={(e) => { const s = courses.find((c) => c.code === e.target.value); setCourseCode(e.target.value); setCourseName(s?.name || ''); setProfessor(''); }}
+                            disabled={!semester}
+                            style={{ ...inputStyle, opacity: semester ? 1 : 0.5, appearance: 'none' }}
+                            onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')}
+                            onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+                          >
+                            <option value="" style={{ background: '#0a1a0f' }}>Select Course</option>
+                            {courses.map((c) => (
+                              <option key={c.code} value={c.code} style={{ background: '#0a1a0f' }}>{c.code} — {c.name}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div>
+                          <label style={labelStyle}>Professor <span style={{ color: '#fca5a5' }}>*</span></label>
+                          <select
+                            value={professor}
+                            onChange={(e) => setProfessor(e.target.value)}
+                            disabled={!courseCode}
+                            style={{ ...inputStyle, opacity: courseCode ? 1 : 0.5, appearance: 'none' }}
+                            onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')}
+                            onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+                          >
+                            <option value="" style={{ background: '#0a1a0f' }}>{courseCode ? 'Select Professor' : 'Select a course first'}</option>
+                            {professors.map((p) => (
+                              <option key={p} value={p} style={{ background: '#0a1a0f' }}>{p}</option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                          <button onClick={handleClose} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px' }}>Cancel</button>
+                          <button onClick={() => setStep(2)} disabled={!canStep1} className="btn-gold" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: canStep1 ? 1 : 0.4, cursor: canStep1 ? 'pointer' : 'not-allowed' }}>
+                            Next <ChevronRight size={15} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            )}
-          </div>
+                    </motion.div>
+                  )}
+
+                  {/* Step 2: File details */}
+                  {step === 2 && (
+                    <motion.div key="s2" variants={contentVar} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.22 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div>
+                          <label style={labelStyle}>File Type <span style={{ color: '#fca5a5' }}>*</span></label>
+                          <select
+                            value={fileType}
+                            onChange={(e) => { setFileType(e.target.value); setExamType(''); }}
+                            style={{ ...inputStyle, appearance: 'none' }}
+                            onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')}
+                            onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
+                          >
+                            <option value="" style={{ background: '#0a1a0f' }}>Select File Type</option>
+                            {['qpaper','notes','slides','lab','assignment','other'].map((t) => (
+                              <option key={t} value={t} style={{ background: '#0a1a0f' }}>
+                                {{ qpaper:'Question Paper', notes:'Notes', slides:'Slides', lab:'Lab Manual', assignment:'Assignment', other:'Other' }[t]}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        {fileType === 'qpaper' && (
+                          <AnimatePresence>
+                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                              <label style={labelStyle}>Exam Type <span style={{ color: '#fca5a5' }}>*</span></label>
+                              <select value={examType} onChange={(e) => setExamType(e.target.value)} style={{ ...inputStyle, appearance: 'none' }} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}>
+                                <option value="" style={{ background: '#0a1a0f' }}>Select Exam Type</option>
+                                {EXAM_TYPES.map((et) => <option key={et.value} value={et.value} style={{ background: '#0a1a0f' }}>{et.label}</option>)}
+                              </select>
+                            </motion.div>
+                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginTop: '12px' }}>
+                              <label style={labelStyle}>Year <span style={{ color: '#fca5a5' }}>*</span></label>
+                              <input type="number" value={year} onChange={(e) => setYear(e.target.value)} placeholder="e.g. 2023" min="2000" max={new Date().getFullYear()} style={inputStyle} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')} />
+                            </motion.div>
+                          </AnimatePresence>
+                        )}
+
+                        <div>
+                          <label style={labelStyle}>File <span style={{ color: '#fca5a5' }}>*</span></label>
+                          <div
+                            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                            onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleFileSelect(e.dataTransfer.files[0]); }}
+                            onClick={() => fileInputRef.current?.click()}
+                            style={{
+                              border: '1px dashed rgba(212,168,83,0.4)',
+                              borderRadius: '12px',
+                              padding: '28px',
+                              textAlign: 'center',
+                              cursor: 'pointer',
+                              background: 'rgba(212,168,83,0.04)',
+                              transition: 'background 0.2s',
+                            }}
+                            onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = 'rgba(212,168,83,0.08)')}
+                            onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.background = 'rgba(212,168,83,0.04)')}
+                          >
+                            <Upload size={28} style={{ margin: '0 auto 8px', color: 'var(--gold)' }} />
+                            <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-2)', marginBottom: '4px' }}>
+                              Drag and drop or click to select
+                            </p>
+                            <p style={{ fontSize: '11px', color: 'var(--text-3)' }}>
+                              {config.ALLOWED_FILE_TYPES.map((t) => `.${t}`).join(', ')} · Max {config.MAX_UPLOAD_SIZE_MB}MB
+                            </p>
+                            <input ref={fileInputRef} type="file" onChange={(e) => handleFileSelect(e.target.files?.[0] || null)} style={{ display: 'none' }} />
+                          </div>
+
+                          {uploadedFile && (
+                            <motion.div
+                              initial={{ opacity: 0, y: 6 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              style={{
+                                marginTop: '10px',
+                                padding: '10px 14px',
+                                background: 'rgba(82,183,136,0.1)',
+                                border: '1px solid rgba(82,183,136,0.25)',
+                                borderRadius: '10px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'space-between',
+                                gap: '10px',
+                              }}
+                            >
+                              <div>
+                                <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--green-bright)', marginBottom: '2px' }}>{uploadedFile.name}</p>
+                                <p style={{ fontSize: '11px', color: 'var(--text-3)' }}>{formatFileSize(uploadedFile.size)}</p>
+                              </div>
+                              <button onClick={() => setUploadedFile(null)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-3)' }}>
+                                <X size={15} />
+                              </button>
+                            </motion.div>
+                          )}
+                        </div>
+
+                        {uploadStatus === 'error' && (
+                          <p style={{ fontSize: '12px', color: '#fca5a5', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '10px 12px' }}>
+                            {uploadMessage}
+                          </p>
+                        )}
+
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                          <button onClick={() => setStep(1)} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px' }}><ChevronLeft size={15} /> Back</button>
+                          <button onClick={() => setStep(3)} disabled={!canStep2} className="btn-gold" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: canStep2 ? 1 : 0.4, cursor: canStep2 ? 'pointer' : 'not-allowed' }}>
+                            Next <ChevronRight size={15} />
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                  {/* Step 3: Uploader info + submit */}
+                  {step === 3 && (
+                    <motion.div key="s3" variants={contentVar} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.22 }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                        <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', fontSize: '12px', lineHeight: 1.7 }}>
+                          <p style={{ fontWeight: 600, color: 'var(--green-bright)', marginBottom: '6px', letterSpacing: '0.04em' }}>Upload Summary</p>
+                          {[
+                            ['Course',    `${courseCode} — ${courseName}`],
+                            ['Professor', professor],
+                            ['Type',      `${fileType}${examType ? ` (${EXAM_TYPES.find((e) => e.value === examType)?.label})` : ''}${year ? ` · ${year}` : ''}`],
+                            ['File',      uploadedFile?.name || ''],
+                          ].map(([k, v]) => (
+                            <p key={k}><span style={{ color: 'var(--text-3)' }}>{k}:</span> <span style={{ color: 'var(--text-2)' }}>{v}</span></p>
+                          ))}
+                        </div>
+
+                        <div>
+                          <label style={labelStyle}>Your Name <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
+                          <input type="text" value={uploaderName} onChange={(e) => setUploaderName(e.target.value)} placeholder="Leave blank to stay anonymous" style={inputStyle} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')} />
+                        </div>
+
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 14px', background: 'rgba(116,198,157,0.06)', border: '1px solid rgba(116,198,157,0.15)', borderRadius: '10px' }}>
+                          <input type="checkbox" id="consent" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ marginTop: '2px', accentColor: 'var(--green-bright)', width: '14px', height: '14px' }} />
+                          <label htmlFor="consent" style={{ fontSize: '12px', color: 'var(--text-2)', cursor: 'pointer', lineHeight: 1.5 }}>
+                            I consent to having my name displayed with this upload
+                          </label>
+                        </div>
+
+                        {uploadStatus === 'uploading' && (
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                              <span style={{ fontSize: '12px', color: 'var(--text-2)' }}>Uploading…</span>
+                              <span style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 500 }}>{uploadProgress}%</span>
+                            </div>
+                            <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+                              <motion.div initial={{ width: 0 }} animate={{ width: `${uploadProgress}%` }} style={{ height: '100%', background: 'linear-gradient(90deg, var(--green-light), var(--gold))', borderRadius: '4px' }} />
+                            </div>
+                          </div>
+                        )}
+
+                        <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                          <button onClick={() => setStep(2)} disabled={uploadStatus === 'uploading'} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: uploadStatus === 'uploading' ? 0.4 : 1 }}><ChevronLeft size={15} /> Back</button>
+                          <button onClick={handleSubmit} disabled={uploadStatus === 'uploading'} className="btn-gold" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: uploadStatus === 'uploading' ? 0.6 : 1 }}>
+                            {uploadStatus === 'uploading' ? 'Uploading…' : 'Submit'}
+                          </button>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+
+                </AnimatePresence>
+              )}
+            </div>
+          </motion.div>
         </motion.div>
-      </motion.div>
-    </AnimatePresence>
+      )}
+    </AnimatePresence>,
+    document.body
   );
 }
