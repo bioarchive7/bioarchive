@@ -1,6 +1,7 @@
 /**
  * Google Sheets API integration
  * Handles reading and writing to the files registry
+ * Updated: Multi-professor support, remarks field
  */
 
 import { google, sheets_v4 } from 'googleapis';
@@ -17,6 +18,8 @@ export interface SheetRow {
   courseCode: string;
   courseName: string;
   professor: string;
+  professor2?: string;      // NEW - optional secondary professor
+  professor3?: string;      // NEW - optional tertiary professor
   examType: string;
   fileType: string;
   fileName: string;
@@ -26,6 +29,7 @@ export interface SheetRow {
   webViewLink: string;
   webContentLink: string;
   downloadCount: number;
+  remarks?: string;         // NEW - optional remarks/notes
 }
 
 /** Column headers in the same order as SheetRow fields */
@@ -35,6 +39,8 @@ const SHEET_HEADERS = [
   'courseCode',
   'courseName',
   'professor',
+  'professor2',         // NEW
+  'professor3',         // NEW
   'examType',
   'fileType',
   'fileName',
@@ -44,6 +50,7 @@ const SHEET_HEADERS = [
   'webViewLink',
   'webContentLink',
   'downloadCount',
+  'remarks',            // NEW
 ];
 
 /**
@@ -77,15 +84,18 @@ function rowToSheetRow(values: any[]): SheetRow {
     courseCode: values[2] || '',
     courseName: values[3] || '',
     professor: values[4] || '',
-    examType: values[5] || '',
-    fileType: values[6] || '',
-    fileName: values[7] || '',
-    uploaderName: values[8] || '',
-    uploadDate: values[9] || '',
-    md5Hash: values[10] || '',
-    webViewLink: values[11] || '',
-    webContentLink: values[12] || '',
-    downloadCount: parseInt(values[13]) || 0,
+    professor2: values[5] || '',        // NEW
+    professor3: values[6] || '',        // NEW
+    examType: values[7] || '',
+    fileType: values[8] || '',
+    fileName: values[9] || '',
+    uploaderName: values[10] || '',
+    uploadDate: values[11] || '',
+    md5Hash: values[12] || '',
+    webViewLink: values[13] || '',
+    webContentLink: values[14] || '',
+    downloadCount: parseInt(values[15]) || 0,
+    remarks: values[16] || '',          // NEW
   };
 }
 
@@ -99,6 +109,8 @@ function sheetRowToArray(row: SheetRow): any[] {
     row.courseCode,
     row.courseName,
     row.professor,
+    row.professor2 || '',               // NEW
+    row.professor3 || '',               // NEW
     row.examType,
     row.fileType,
     row.fileName,
@@ -108,6 +120,7 @@ function sheetRowToArray(row: SheetRow): any[] {
     row.webViewLink,
     row.webContentLink,
     row.downloadCount,
+    row.remarks || '',                  // NEW
   ];
 }
 
@@ -124,7 +137,7 @@ export async function initializeSheetHeaders(): Promise<void> {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: config.SHEET_ID,
-      range: 'Sheet1!A1:N1',
+      range: 'Sheet1!A1:Q1',            // Updated range for new columns
     });
 
     const headerRow = response.data.values?.[0];
@@ -132,7 +145,7 @@ export async function initializeSheetHeaders(): Promise<void> {
     if (!headerRow || headerRow.length === 0) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: config.SHEET_ID,
-        range: 'Sheet1!A1:N1',
+        range: 'Sheet1!A1:Q1',           // Updated range for new columns
         valueInputOption: 'RAW',
         requestBody: {
           values: [SHEET_HEADERS],
@@ -158,7 +171,7 @@ export async function getAllFiles(): Promise<SheetRow[]> {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: config.SHEET_ID,
-      range: 'Sheet1!A2:N',
+      range: 'Sheet1!A2:Q',             // Updated range for new columns
     });
 
     const rows = response.data.values || [];
@@ -182,7 +195,7 @@ export async function appendFileRecord(row: SheetRow): Promise<void> {
   try {
     await sheets.spreadsheets.values.append({
       spreadsheetId: config.SHEET_ID,
-      range: 'Sheet1!A:N',       // fixed — was A:L
+      range: 'Sheet1!A:Q',              // Updated range for new columns
       valueInputOption: 'RAW',
       requestBody: {
         values: [sheetRowToArray(row)],
@@ -198,7 +211,7 @@ export async function appendFileRecord(row: SheetRow): Promise<void> {
 
 /**
  * Increment the download count for a file by 1.
- * downloadCount is column N (index 13, 1-indexed = 14).
+ * downloadCount is column P (index 15, 1-indexed = 16).
  */
 export async function incrementDownloadCount(fileId: string): Promise<void> {
   if (!config.SHEET_ID) {
@@ -227,8 +240,8 @@ export async function incrementDownloadCount(fileId: string): Promise<void> {
       throw new Error(`File with ID "${fileId}" not found in registry`);
     }
 
-    // downloadCount is column N
-    const downloadCountCell = `N${targetRowIndex}`;
+    // downloadCount is column P
+    const downloadCountCell = `P${targetRowIndex}`;
     const currentCell = await sheets.spreadsheets.values.get({
       spreadsheetId: config.SHEET_ID,
       range: downloadCountCell,
@@ -250,5 +263,52 @@ export async function incrementDownloadCount(fileId: string): Promise<void> {
       throw new Error(errorMessage);
     }
     throw new Error(`Failed to increment download count for file "${fileId}": ${errorMessage}`);
+  }
+}
+
+/**
+ * Update remarks for a file
+ */
+export async function updateRemarks(fileId: string, remarks: string): Promise<void> {
+  if (!config.SHEET_ID) {
+    throw new Error('SHEET_ID is not configured in config/index.ts');
+  }
+
+  const sheets = initSheetsClient();
+
+  try {
+    const response = await sheets.spreadsheets.values.get({
+      spreadsheetId: config.SHEET_ID,
+      range: 'Sheet1!A:A',
+    });
+
+    const fileIds = response.data.values || [];
+    let targetRowIndex = -1;
+
+    for (let i = 1; i < fileIds.length; i++) {
+      if (fileIds[i][0] === fileId) {
+        targetRowIndex = i + 1;
+        break;
+      }
+    }
+
+    if (targetRowIndex === -1) {
+      throw new Error(`File with ID "${fileId}" not found in registry`);
+    }
+
+    // remarks is column Q
+    const remarksCell = `Q${targetRowIndex}`;
+
+    await sheets.spreadsheets.values.update({
+      spreadsheetId: config.SHEET_ID,
+      range: remarksCell,
+      valueInputOption: 'RAW',
+      requestBody: {
+        values: [[remarks]],
+      },
+    });
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    throw new Error(`Failed to update remarks for file "${fileId}": ${errorMessage}`);
   }
 }

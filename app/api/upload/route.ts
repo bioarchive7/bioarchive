@@ -1,207 +1,216 @@
 /**
- * File upload API route
- * No authentication required — open to all users
+ * API Upload Endpoint Handler
+ * Location: app/api/upload/route.ts
+ * 
+ * Handles multi-file uploads with automatic merging for compatible file types
+ * Uploads merged file to Google Drive and registers in Google Sheets
  */
 
 import { NextRequest, NextResponse } from 'next/server';
+import { uploadFileToDrive, checkDuplicateByHash } from '@/lib/drive';
+import { appendFileRecord, getAllFiles } from '@/lib/sheets';
+import { computeMD5, generateFileName } from '@/lib/utils';
+import { smartMergeFiles, shouldMergeFiles } from '@/lib/file-merger';
 import { notifyModsOfUpload } from '@/lib/notify';
 import config from '@/config';
-import {
-  generateFileName,
-  computeMD5,
-  FileType,
-  isFileTypeAllowed,
-  isFileSizeAllowed,
-} from '@/lib/utils';
-import {
-  uploadFileToDrive,
-  makeFilePublic,
-  initDriveClient,
-} from '@/lib/drive';
-import { getAllFiles, appendFileRecord, SheetRow } from '@/lib/sheets';
 
-export const maxDuration = 60;
-
-interface UploadResponse {
-  status: 'success' | 'duplicate' | 'error';
-  message: string;
-  data?: {
-    fileId?: string;
-    webViewLink?: string;
-    webContentLink?: string;
-  };
-}
-
-/**
- * Check duplicate by metadata.
- * For question papers: matches courseCode + fileType + professor + examType + year
- * For all other types: matches courseCode + fileType + professor
- */
-function checkDuplicateByMetadata(
-  existingFiles: SheetRow[],
-  courseCode: string,
-  fileType: string,
-  professor: string,
-  examType: string,
-  year: string
-): boolean {
-  return existingFiles.some((row) => {
-    const sameCore =
-      row.courseCode === courseCode &&
-      row.fileType === fileType &&
-      row.professor === professor;
-
-    if (fileType === 'qpaper') {
-      const rowYear = row.fileName.match(/_(\d{4})_/)?.[1] || '';
-      return sameCore && row.examType === examType && rowYear === year;
-    }
-
-    return sameCore;
-  });
-}
-
-export async function POST(request: NextRequest): Promise<NextResponse<UploadResponse>> {
+export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
 
-    const file = formData.get('file') as File | null;
-    const semester = formData.get('semester') as string | null;
-    const courseCode = formData.get('courseCode') as string | null;
-    const courseName = formData.get('courseName') as string | null;
-    const fileType = formData.get('fileType') as string | null;
-    const year = (formData.get('year') as string | null) || '';
-    const uploaderName = (formData.get('uploaderName') as string | null) || 'Anonymous';
-    const consent = formData.get('consent') as string | null;
-    const professor = (formData.get('professor') as string | null) || '';
-    const examType = (formData.get('examType') as string | null) || 'na';
+    // Extract fields
+    const semester = formData.get('semester') as string;
+    const courseCode = formData.get('courseCode') as string;
+    const courseName = formData.get('courseName') as string;
+    const professor = formData.get('professor') as string;
+    const professor2 = formData.get('professor2') as string | null;
+    const professor3 = formData.get('professor3') as string | null;
+    const examType = formData.get('examType') as string;
+    const fileType = formData.get('fileType') as string;
+    const year = formData.get('year') as string;
+    const uploaderName = formData.get('uploaderName') as string;
+    const remarks = formData.get('remarks') as string | null;
+    const isMultiFile = (formData.get('isMultiFile') as string) === 'true';
 
-    // ========== VALIDATION ==========
-
-    if (!file) return NextResponse.json({ status: 'error', message: 'No file provided.' }, { status: 400 });
-    if (!semester) return NextResponse.json({ status: 'error', message: 'Semester is required.' }, { status: 400 });
-    if (!courseCode) return NextResponse.json({ status: 'error', message: 'Course code is required.' }, { status: 400 });
-    if (!courseName) return NextResponse.json({ status: 'error', message: 'Course name is required.' }, { status: 400 });
-    if (!fileType) return NextResponse.json({ status: 'error', message: 'File type is required.' }, { status: 400 });
-    if (!professor) return NextResponse.json({ status: 'error', message: 'Professor name is required.' }, { status: 400 });
-
-    if (fileType === 'qpaper' && !examType) {
-      return NextResponse.json({ status: 'error', message: 'Exam type is required for question papers.' }, { status: 400 });
+    // Get all files from FormData
+    const fileEntries = formData.getAll('files');
+    if (fileEntries.length === 0) {
+      return NextResponse.json(
+        { status: 'error', message: 'No files provided' },
+        { status: 400 }
+      );
     }
 
-    if (!isFileTypeAllowed(file.name)) {
-      return NextResponse.json({
-        status: 'error',
-        message: `File type not allowed. Allowed: ${config.ALLOWED_FILE_TYPES.join(', ')}`,
-      }, { status: 400 });
+    // Validate inputs
+    if (!semester || !courseCode || !fileType || !professor) {
+      return NextResponse.json(
+        { status: 'error', message: 'Missing required fields' },
+        { status: 400 }
+      );
     }
 
-    if (!isFileSizeAllowed(file.size)) {
-      return NextResponse.json({
-        status: 'error',
-        message: `File exceeds ${config.MAX_UPLOAD_SIZE_MB}MB limit.`,
-      }, { status: 400 });
-    }
+    // Convert files to buffers
+    const files: { name: string; buffer: Buffer; ext: string }[] = [];
+    for (const entry of fileEntries) {
+      if (!(entry instanceof File)) continue;
 
-    const semesterNum = parseInt(semester);
-    if (isNaN(semesterNum) || semesterNum < 1 || semesterNum > 10) {
-      return NextResponse.json({ status: 'error', message: 'Semester must be between 1 and 10.' }, { status: 400 });
-    }
+      const buffer = Buffer.from(await entry.arrayBuffer());
+      const ext = entry.name.split('.').pop()?.toLowerCase() || '';
 
-    // ========== DUPLICATE CHECK ==========
-
-    const existingFiles = await getAllFiles();
-    const isDuplicate = checkDuplicateByMetadata(
-      existingFiles,
-      courseCode,
-      fileType,
-      professor,
-      examType,
-      year
-    );
-
-    // ========== PROCESS UPLOAD ==========
-
-    const fileBuffer = Buffer.from(await file.arrayBuffer());
-    const md5Hash = computeMD5(fileBuffer);
-
-    const generatedFileName = generateFileName({
-      semester: semesterNum,
-      courseCode,
-      type: fileType as FileType,
-      year: year ? parseInt(year) : undefined,
-      uploaderName: consent === 'true' ? uploaderName : undefined,
-      originalName: file.name,
-    });
-
-    const folderId = isDuplicate ? config.DUPLICATE_FOLDER_ID : config.DRIVE_FOLDER_ID;
-    const actualFileName = isDuplicate ? `DUPLICATE_${generatedFileName}` : generatedFileName;
-
-    const uploadResult = await uploadFileToDrive({
-      fileBuffer,
-      fileName: actualFileName,
-      mimeType: file.type || 'application/octet-stream',
-      folderId,
-    });
-
-    // Duplicate — store in backup, skip sheet + notification
-    if (isDuplicate) {
-      return NextResponse.json({
-        status: 'duplicate',
-        message: 'A file with these same details already exists. Stored in backup for manual review.',
-        data: { fileId: uploadResult.fileId },
+      files.push({
+        name: entry.name,
+        buffer,
+        ext,
       });
     }
 
-    // Make file publicly viewable
-    const driveClient = initDriveClient();
-    await makeFilePublic(driveClient, uploadResult.fileId);
+    if (files.length === 0) {
+      return NextResponse.json(
+        { status: 'error', message: 'No valid files provided' },
+        { status: 400 }
+      );
+    }
 
-    // Record in Google Sheet
-    const sheetRecord: SheetRow = {
+    // Check for duplicates before merging
+    const sheetData = await getAllFiles();
+    
+    // Compute hash of the first file (or merged file)
+    let fileToUpload: { name: string; buffer: Buffer };
+
+    // Decide whether to merge files
+    if (shouldMergeFiles(fileType, files.length)) {
+      const merged = await smartMergeFiles(files);
+      fileToUpload = {
+        name: merged.filename,
+        buffer: merged.buffer,
+      };
+    } else {
+      // Use only the first file
+      fileToUpload = {
+        name: files[0].name,
+        buffer: files[0].buffer,
+      };
+    }
+
+    const md5Hash = computeMD5(fileToUpload.buffer);
+
+    // Check if file already exists
+    if (checkDuplicateByHash(md5Hash, sheetData)) {
+      return NextResponse.json(
+        {
+          status: 'duplicate',
+          message: 'This file already exists in our database',
+        },
+        { status: 400 }
+      );
+    }
+
+    // Generate standard filename
+    const finalFileName = generateFileName({
+      semester: parseInt(semester),
+      courseCode,
+      type: fileType as any,
+      year: year ? parseInt(year) : undefined,
+      originalName: fileToUpload.name,
+    });
+
+    // Upload to Google Drive
+    const uploadResult = await uploadFileToDrive({
+      fileBuffer: fileToUpload.buffer,
+      fileName: finalFileName,
+      mimeType: getMimeType(finalFileName),
+      folderId: config.DRIVE_FOLDER_ID,
+    });
+
+    // Prepare professor list
+    const professorList = [
+      professor,
+      professor2 || null,
+      professor3 || null,
+    ]
+      .filter(Boolean)
+      .join('; ');
+
+    // Register in Google Sheets
+    const uploadDate = new Date().toISOString().split('T')[0];
+    await appendFileRecord({
       fileId: uploadResult.fileId,
       semester,
       courseCode,
       courseName,
+      professor: professorList,
+      examType,
       fileType,
-      fileName: generatedFileName,
-      uploaderName: consent === 'true' ? uploaderName : 'Anonymous',
-      uploadDate: new Date().toISOString().split('T')[0],
+      fileName: finalFileName,
+      uploaderName: uploaderName || 'Anonymous',
+      uploadDate,
       md5Hash,
       webViewLink: uploadResult.webViewLink,
       webContentLink: uploadResult.webContentLink,
       downloadCount: 0,
-      professor,
-      examType: fileType === 'qpaper' ? examType : 'na',
-    };
+    });
 
-    await appendFileRecord(sheetRecord);
-
-    // Notify mods — fire and forget, never blocks the upload response
-    notifyModsOfUpload({
-      fileName: generatedFileName,
+    // Send mod notification
+    await notifyModsOfUpload({
+      fileName: finalFileName,
       courseCode,
       courseName,
       semester,
       professor,
       fileType,
-      examType: fileType === 'qpaper' ? examType : 'na',
-      uploaderName: consent === 'true' ? uploaderName : 'Anonymous',
+      examType,
+      uploaderName: uploaderName || 'Anonymous',
       webViewLink: uploadResult.webViewLink,
-    }).catch(() => {}); // silently ignore if email fails
-
-    return NextResponse.json({
-      status: 'success',
-      message: `"${generatedFileName}" uploaded successfully.`,
-      data: {
-        fileId: uploadResult.fileId,
-        webViewLink: uploadResult.webViewLink,
-        webContentLink: uploadResult.webContentLink,
-      },
+    }).catch((err) => {
+      console.error('Notification failed:', err);
+      // Don't fail the upload if notification fails
     });
 
+    return NextResponse.json(
+      {
+        status: 'success',
+        message: `File${files.length > 1 ? 's' : ''} uploaded successfully${isMultiFile ? ' and merged' : ''}`,
+        data: {
+          fileId: uploadResult.fileId,
+          webViewLink: uploadResult.webViewLink,
+          webContentLink: uploadResult.webContentLink,
+        },
+      },
+      { status: 200 }
+    );
   } catch (error) {
+    const errorMsg = error instanceof Error ? error.message : String(error);
     console.error('Upload error:', error);
-    const msg = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ status: 'error', message: `Upload failed: ${msg}` }, { status: 500 });
+
+    return NextResponse.json(
+      {
+        status: 'error',
+        message: `Upload failed: ${errorMsg}`,
+      },
+      { status: 500 }
+    );
   }
+}
+
+/**
+ * Get MIME type based on file extension
+ */
+function getMimeType(filename: string): string {
+  const ext = filename.split('.').pop()?.toLowerCase() || '';
+
+  const mimeTypes: Record<string, string> = {
+    pdf: 'application/pdf',
+    doc: 'application/msword',
+    docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    xls: 'application/vnd.ms-excel',
+    xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ppt: 'application/vnd.ms-powerpoint',
+    pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    zip: 'application/zip',
+    png: 'image/png',
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+  };
+
+  return mimeTypes[ext] || 'application/octet-stream';
 }
