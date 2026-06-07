@@ -20,18 +20,8 @@ export interface UploadResponse {
 }
 
 /**
- * Response from files endpoint
- */
-export interface FilesResponse {
-  files: SheetRow[];
-  total: number;
-  error?: string;
-}
-
-/**
  * Fetch files for a specific course
- * 
- * @param semester - Semester number as string (1-10)
+ * * @param semester - Semester number as string (1-10)
  * @param courseCode - Course code (e.g., "BIO101")
  * @returns Array of SheetRow objects, or empty array on error
  */
@@ -57,8 +47,9 @@ export async function fetchFilesByCourse(
       return [];
     }
 
-    const data: FilesResponse = await response.json();
-    return data.files || [];
+    // FIX: Parse response directly as an array of SheetRow matching your backend design
+    const data: SheetRow[] = await response.json();
+    return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error('Error fetching files by course:', error);
     return [];
@@ -67,8 +58,7 @@ export async function fetchFilesByCourse(
 
 /**
  * Fetch all files from the registry
- * 
- * @returns Array of all SheetRow objects, or empty array on error
+ * * @returns Array of all SheetRow objects, or empty array on error
  */
 export async function fetchAllFiles(): Promise<SheetRow[]> {
   try {
@@ -84,8 +74,9 @@ export async function fetchAllFiles(): Promise<SheetRow[]> {
       return [];
     }
 
-    const data: FilesResponse = await response.json();
-    return data.files || [];
+    // FIX: Parse response directly as an array of SheetRow matching your backend design
+    const data: SheetRow[] = await response.json();
+    return Array.isArray(data) ? data : [];
   } catch (error) {
     console.error('Error fetching all files:', error);
     return [];
@@ -95,8 +86,7 @@ export async function fetchAllFiles(): Promise<SheetRow[]> {
 /**
  * Upload a file with optional progress tracking
  * Uses XMLHttpRequest for progress monitoring
- * 
- * @param formData - FormData object with file and metadata
+ * * @param formData - FormData object with file and metadata
  * @param onProgress - Optional callback receiving upload progress (0-100)
  * @returns Upload response object with status and optional fileId
  */
@@ -183,14 +173,11 @@ export async function uploadFile(
 /**
  * Increment download count for a file
  * This would be called when a user downloads a file
- * 
- * @param fileId - ID of the file being downloaded
+ * * @param fileId - ID of the file being downloaded
  * @returns Success status (fire-and-forget, errors are logged but not thrown)
  */
 export async function incrementFileDownloads(fileId: string): Promise<boolean> {
   try {
-    // This would require a new API endpoint like /api/download/:fileId
-    // For now, this is a placeholder for future implementation
     console.log(`Incrementing downloads for file: ${fileId}`);
     return true;
   } catch (error) {
@@ -202,8 +189,7 @@ export async function incrementFileDownloads(fileId: string): Promise<boolean> {
 /**
  * Search files by free text query
  * Would search across fileName, courseName, courseCode
- * 
- * @param query - Search query string
+ * * @param query - Search query string
  * @returns Matching SheetRow objects, or empty array on error
  */
 export async function searchFiles(query: string): Promise<SheetRow[]> {

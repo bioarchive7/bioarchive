@@ -178,6 +178,12 @@ body {
   z-index: 1;
 }
 
+/*
+ * SIDEBAR — permanently fixed at all screen sizes.
+ * The mobile slide-drawer behaviour has been removed; the sidebar
+ * never transforms or hides. On narrow viewports the width shrinks
+ * to 220px so the main content retains usable space.
+ */
 .sidebar {
   width: var(--sidebar-w);
   height: 100vh;
@@ -193,7 +199,8 @@ body {
   background: rgba(10,26,15,0.7);
   backdrop-filter: blur(24px);
   -webkit-backdrop-filter: blur(24px);
-  transition: transform 0.38s var(--ease-out);
+  /* No transform / transition — sidebar never moves */
+  overflow: hidden; /* internal list scrolls; outer shell stays put */
 }
 
 .main-content {
@@ -348,35 +355,18 @@ body {
   border-radius: 8px;
 }
 
-/* ─── Mobile overlay ────────────────────────────────────────── */
-.sidebar-overlay {
-  display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 29;
-  background: rgba(0,0,0,0.6);
-  backdrop-filter: blur(2px);
-  opacity: 0;
-  transition: opacity 0.3s ease;
-}
-.sidebar-overlay.visible { opacity: 1; }
+/*
+ * ─── Mobile overlay — disabled ──────────────────────────────
+ * The overlay was only needed for the slide-drawer. Since the
+ * sidebar is now permanently visible, it is never rendered.
+ */
+.sidebar-overlay { display: none !important; }
 
-/* ─── Hamburger ─────────────────────────────────────────────── */
-.ham-btn {
-  display: none;
-  flex-direction: column;
-  justify-content: center;
-  gap: 5px;
-  width: 36px;
-  height: 36px;
-  background: var(--glass);
-  border: 1px solid var(--glass-border);
-  border-radius: 8px;
-  cursor: pointer;
-  padding: 8px;
-  transition: background 0.2s;
-}
-.ham-btn:hover { background: var(--glass-hover); }
+/*
+ * ─── Hamburger — hidden at all sizes ────────────────────────
+ * The sidebar no longer hides, so the toggle button is gone.
+ */
+.ham-btn { display: none !important; }
 
 .ham-line {
   height: 1.5px;
@@ -385,12 +375,8 @@ body {
   transition: transform 0.25s, opacity 0.25s;
   transform-origin: center;
 }
-.ham-btn.open .ham-line:nth-child(1) { transform: translateY(6.5px) rotate(45deg); }
-.ham-btn.open .ham-line:nth-child(2) { opacity: 0; }
-.ham-btn.open .ham-line:nth-child(3) { transform: translateY(-6.5px) rotate(-45deg); }
 
 /* ─── NISER tag — hidden on small screens ───────────────────── */
-/* Fix 4: replaced Tailwind responsive class with plain CSS      */
 .niser-tag {
   font-size: 10px;
   font-weight: 500;
@@ -403,7 +389,6 @@ body {
 }
 
 /* ─── Buttons ────────────────────────────────────────────────── */
-/* Fix 1-3: moved ALL pseudo-states inside @layer components     */
 @layer components {
   .btn-gold {
     display: inline-flex;
@@ -449,28 +434,31 @@ body {
 }
 
 /* ─── Responsive ─────────────────────────────────────────────── */
+/*
+ * Sidebar is always visible — no transform or pointer-events toggling.
+ * On narrow screens we shrink the sidebar width and update the
+ * main-content margin to match, keeping content readable.
+ */
 @media (max-width: 768px) {
-  .sidebar {
-    transform: translateX(-100%);
-    width: 280px;
-    z-index: 40;
-    pointer-events: none;
+  :root {
+    --sidebar-w: 220px;
   }
-  .sidebar.open { transform: translateX(0);
-  pointer-events: auto; }
-  .sidebar-overlay { display: block;
-  pointer-events: none; }
-  .sidebar-overlay.visible {
-    opacity: 1;
-    pointer-events: auto;
+}
+
+@media (max-width: 480px) {
+  :root {
+    --sidebar-w: 180px;
   }
-  .main-content { margin-left: 0; }
-  .ham-btn { display: flex; }
+
+  /* Tighten sidebar internals on very small screens */
+  .sem-trigger { padding: 11px 12px; }
+  .course-item { padding: 8px 12px 8px 20px; }
+  .sem-label   { font-size: 12px; }
 }
 
 /* ─── Print ──────────────────────────────────────────────────── */
 @media print {
-  .sidebar, .ham-btn { display: none; }
+  .sidebar { display: none; }
   .main-content { margin-left: 0; }
   body { background: white; color: black; }
 }

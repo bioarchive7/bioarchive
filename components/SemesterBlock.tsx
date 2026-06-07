@@ -5,7 +5,6 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ChevronDown } from 'lucide-react';
 import { Course } from '@/data/curriculum';
 import CourseCard from './CourseCard';
-import { fetchFilesByCourse } from '@/lib/api-client';
 
 interface SemesterBlockProps {
   semesterNumber: number;
@@ -27,42 +26,20 @@ export default function SemesterBlock({
   onCourseActivate,
 }: SemesterBlockProps) {
   const [expandedCourse, setExpandedCourse] = useState<string | null>(null);
-  const [fileCount, setFileCount]           = useState(0);
 
-  // If sidebar selects a course, expand it
+  // Sync expanded with active course sidebars
   useEffect(() => {
     if (activeCourse && courses.find((c) => c.code === activeCourse)) {
       setExpandedCourse(activeCourse);
     }
   }, [activeCourse, courses]);
 
-  // File count fetch
-  useEffect(() => {
-    if (!isExpanded) return;
-    let cancelled = false;
-    (async () => {
-      let total = 0;
-      for (const course of courses) {
-        try {
-          const files = await fetchFilesByCourse(semesterNumber.toString(), course.code);
-          total += files.length;
-        } catch { /* silent */ }
-      }
-      if (!cancelled) setFileCount(total);
-    })();
-    return () => { cancelled = true; };
-  }, [isExpanded, courses, semesterNumber]);
-
   const shortLabel = label
     ? 'ADV'
     : `S${semesterNumber < 10 ? `0${semesterNumber}` : semesterNumber}`;
 
   return (
-    <div
-      style={{
-        borderBottom: '1px solid var(--glass-border)',
-      }}
-    >
+    <div style={{ borderBottom: '1px solid var(--glass-border)' }}>
       {/* ── Header ─────────────────────────────────────────── */}
       <button
         onClick={onToggle}
@@ -118,25 +95,9 @@ export default function SemesterBlock({
             {label || `Semester ${semesterNumber}`}
           </span>
 
-          {/* Meta */}
-          <span
-            style={{
-              fontSize: '12px',
-              color: 'var(--text-3)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-            }}
-          >
+          {/* Meta (Clean dynamic lengths without crushing backend functions) */}
+          <span style={{ fontSize: '12px', color: 'var(--text-3)' }}>
             {courses.length} course{courses.length !== 1 ? 's' : ''}
-            {fileCount > 0 && (
-              <>
-                <span style={{ color: 'var(--glass-border)' }}>·</span>
-                <span style={{ color: 'var(--gold)', fontWeight: 500 }}>
-                  {fileCount} file{fileCount !== 1 ? 's' : ''}
-                </span>
-              </>
-            )}
           </span>
         </div>
 
