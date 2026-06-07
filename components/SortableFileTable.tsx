@@ -20,7 +20,7 @@ interface SortableFileTableProps {
   accentColor: string;
 }
 
-const COLUMNS: { key: SortField; label: string; width: string; sortable: boolean }[] = [
+const COLUMNS: { key: SortField | 'actions'; label: string; width: string; sortable: boolean }[] = [
   { key: 'fileName', label: 'File Name', width: '32%', sortable: true },
   { key: 'professor', label: 'Professor', width: '20%', sortable: true },
   { key: 'year', label: 'Year', width: '12%', sortable: true },
@@ -31,7 +31,7 @@ const COLUMNS: { key: SortField; label: string; width: string; sortable: boolean
 
 export default function SortableFileTable({
   files,
-  fileType,
+//   fileType,
   sortField,
   sortOrder,
   onSort,
