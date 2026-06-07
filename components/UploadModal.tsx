@@ -133,6 +133,13 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
       return;
     }
 
+    // Year is required for all file types
+    if (!year) {
+      setUploadStatus('error');
+      setUploadMessage('Please enter the year');
+      return;
+    }
+
     // Check for "other" field explanations
     if (fileType === 'other' && !otherFileType.trim()) {
       setUploadStatus('error');
@@ -155,11 +162,6 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
       if (examType === 'other' && !otherExamType.trim()) {
         setUploadStatus('error');
         setUploadMessage('Please specify what "other" exam type means');
-        return;
-      }
-      if (!year) {
-        setUploadStatus('error');
-        setUploadMessage('Please enter the year for question papers');
         return;
       }
     }
@@ -236,8 +238,8 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
 
   const handleClose = () => { resetForm(); onClose?.(); };
 
-  const canStep1 = !!(semester && courseCode && professor);
-  const canStep2 = !!(fileType && uploadedFiles.length > 0 && (fileType !== 'qpaper' || (!!examType && !!year)));
+  const canStep1 = !!(semester && courseCode && professor && year);
+  const canStep2 = !!(fileType && uploadedFiles.length > 0 && (fileType !== 'qpaper' || !!examType));
 
   const contentVar = {
     hidden:  { opacity: 0, x: 20 },
@@ -355,6 +357,11 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                               <option value="" style={{ background: '#0a1a0f' }}>Select Semester</option>
                               {config.NISER_SEMESTERS.map((s) => <option key={s} value={s} style={{ background: '#0a1a0f' }}>Semester {s}</option>)}
                             </select>
+                          </div>
+
+                          <div>
+                            <label style={labelStyle}>Year <span style={{ color: '#fca5a5' }}>*</span></label>
+                            <input type="text" value={year} onChange={(e) => setYear(e.target.value)} placeholder="e.g., 2024 or 2023-24" style={inputStyle} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')} />
                           </div>
 
                           <div>
@@ -477,7 +484,7 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                               <p style={{ fontSize: '11px', color: 'var(--text-3)' }}>
                                 {config.ALLOWED_FILE_TYPES.map((t) => `.${t}`).join(', ')} · Max {config.MAX_UPLOAD_SIZE_MB}MB per file
                               </p>
-                              <input ref={fileInputRef} type="file" onChange={(e) => handleFileSelect(e.target.files)} style={{ display: 'none' }} multiple={isMultiFileType} />
+                              <input ref={fileInputRef} type="file" onChange={(e) => handleFileSelect(e.target.files)} style={{ display: 'none' }} multiple={!!isMultiFileType} />
                             </div>
 
                             {uploadedFiles.length > 0 && (

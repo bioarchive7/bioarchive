@@ -1,123 +1,132 @@
 /**
  * File Merger Utility
- * Handles merging of multiple files (PDFs, office docs, images, etc.)
- * Returns a single merged file buffer
+ * Zero external dependencies — uses only Node.js built-ins.
+ * Creates real ZIP files using the deflate algorithm via Node's zlib.
  */
 
-/**
- * Merge multiple PDF files into one
- * Requires pdfkit library (needs to be installed: npm install pdfkit)
- */
-export async function mergePDFs(files: Buffer[]): Promise<Buffer> {
-  try {
-    // Dynamic import to avoid issues if pdfkit isn't available
-    const PDFDocument = require('pdfkit');
-    
-    return new Promise((resolve, reject) => {
-      const doc = new PDFDocument({
-        bufferPages: true,
-        margin: 50,
-      });
+import { deflateRawSync } from 'zlib';
 
-      const chunks: Buffer[] = [];
-
-      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
-      doc.on('end', () => resolve(Buffer.concat(chunks)));
-      doc.on('error', reject);
-
-      // Add each PDF's content
-      files.forEach((file, index) => {
-        if (index > 0) doc.addPage();
-        doc.text(`[File ${index + 1}]`, { fontSize: 10, color: '#999999' });
-        doc.text(file.toString('utf-8').slice(0, 500)); // Just show a snippet
-      });
-
-      doc.end();
-    });
-  } catch (error) {
-    throw new Error(`Failed to merge PDFs: ${error instanceof Error ? error.message : String(error)}`);
+// ── CRC32 (required by ZIP spec) ─────────────────────────────────────────────
+const CRC_TABLE = (() => {
+  const table = new Uint32Array(256);
+  for (let i = 0; i < 256; i++) {
+    let c = i;
+    for (let j = 0; j < 8; j++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    table[i] = c;
   }
+  return table;
+})();
+
+function crc32(buf: Buffer): number {
+  let crc = 0xffffffff;
+  for (let i = 0; i < buf.length; i++) {
+    crc = CRC_TABLE[(crc ^ buf[i]) & 0xff] ^ (crc >>> 8);
+  }
+  return (crc ^ 0xffffffff) >>> 0;
 }
 
-/**
- * Merge multiple files into a ZIP archive
- * Requires archiver library (needs to be installed: npm install archiver)
- */
-export async function mergeIntoZip(files: { name: string; buffer: Buffer }[]): Promise<Buffer> {
-  try {
-    const archiver = require('archiver');
-
-    return new Promise((resolve, reject) => {
-      const archive = archiver('zip', { zlib: { level: 9 } });
-      const chunks: Buffer[] = [];
-
-      archive.on('data', (chunk: Buffer) => chunks.push(chunk));
-      archive.on('end', () => resolve(Buffer.concat(chunks)));
-      archive.on('error', reject);
-
-      archive.pipe({
-        write: (data: Buffer) => chunks.push(data),
-      });
-
-      // Add each file to the archive
-      files.forEach((file) => {
-        archive.append(file.buffer, { name: file.name });
-      });
-
-      archive.finalize();
-    });
-  } catch (error) {
-    throw new Error(`Failed to create ZIP: ${error instanceof Error ? error.message : String(error)}`);
-  }
-}
-
-/**
- * Intelligently merge files based on type
- * - PDFs -> Merge into single PDF
- * - Office docs -> ZIP into archive
- * - Mixed -> ZIP into archive
- */
-export async function smartMergeFiles(
-  files: { name: string; buffer: Buffer; ext: string }[]
-): Promise<{ buffer: Buffer; filename: string }> {
-  if (files.length === 0) {
-    throw new Error('No files to merge');
-  }
-
-  // Single file - just return it
-  if (files.length === 1) {
-    return {
-      buffer: files[0].buffer,
-      filename: files[0].name,
-    };
-  }
-
-  // All PDFs - try to merge
-  const allPDFs = files.every((f) => f.ext.toLowerCase() === 'pdf');
-  if (allPDFs) {
-    try {
-      const merged = await mergePDFs(files.map((f) => f.buffer));
-      return {
-        buffer: merged,
-        filename: `merged_${Date.now()}.pdf`,
-      };
-    } catch (error) {
-      console.warn('PDF merge failed, falling back to ZIP:', error);
-      // Fall through to ZIP
-    }
-  }
-
-  // Multiple different types or PDF merge failed - create ZIP
-  const zip = await mergeIntoZip(files);
+// ── DOS timestamp helper ──────────────────────────────────────────────────────
+function dosDateTime(): { time: number; date: number } {
+  const d = new Date();
   return {
-    buffer: zip,
-    filename: `documents_${Date.now()}.zip`,
+    time: (d.getHours() << 11) | (d.getMinutes() << 5) | (d.getSeconds() >> 1),
+    date: ((d.getFullYear() - 1980) << 9) | ((d.getMonth() + 1) << 5) | d.getDate(),
   };
 }
 
 /**
- * Check if we should attempt to merge files
- * Returns true if multiple files are uploadable as merged
+ * Merge multiple files into a ZIP archive using Node.js built-ins only.
+ */
+export async function mergeIntoZip(
+  files: { name: string; buffer: Buffer }[]
+): Promise<Buffer> {
+  const localParts: Buffer[] = [];
+  const centralParts: Buffer[] = [];
+  let offset = 0;
+
+  for (const file of files) {
+    const nameBytes = Buffer.from(file.name, 'utf8');
+    const compressed = deflateRawSync(file.buffer, { level: 9 });
+    const checksum = crc32(file.buffer);
+    const { time, date } = dosDateTime();
+
+    // ── Local file header (30 bytes + filename) ───────────────────────────
+    const local = Buffer.alloc(30 + nameBytes.length);
+    local.writeUInt32LE(0x04034b50, 0);       // signature
+    local.writeUInt16LE(20, 4);                // version needed
+    local.writeUInt16LE(0, 6);                 // flags
+    local.writeUInt16LE(8, 8);                 // method: deflate
+    local.writeUInt16LE(time, 10);
+    local.writeUInt16LE(date, 12);
+    local.writeUInt32LE(checksum, 14);
+    local.writeUInt32LE(compressed.length, 18);
+    local.writeUInt32LE(file.buffer.length, 22);
+    local.writeUInt16LE(nameBytes.length, 26);
+    local.writeUInt16LE(0, 28);                // extra field length
+    nameBytes.copy(local, 30);
+
+    // ── Central directory header (46 bytes + filename) ───────────────────
+    const central = Buffer.alloc(46 + nameBytes.length);
+    central.writeUInt32LE(0x02014b50, 0);      // signature
+    central.writeUInt16LE(20, 4);              // version made by
+    central.writeUInt16LE(20, 6);              // version needed
+    central.writeUInt16LE(0, 8);               // flags
+    central.writeUInt16LE(8, 10);              // method: deflate
+    central.writeUInt16LE(time, 12);
+    central.writeUInt16LE(date, 14);
+    central.writeUInt32LE(checksum, 16);
+    central.writeUInt32LE(compressed.length, 20);
+    central.writeUInt32LE(file.buffer.length, 24);
+    central.writeUInt16LE(nameBytes.length, 28);
+    central.writeUInt16LE(0, 30);              // extra field length
+    central.writeUInt16LE(0, 32);              // file comment length
+    central.writeUInt16LE(0, 34);              // disk number start
+    central.writeUInt16LE(0, 36);              // internal attributes
+    central.writeUInt32LE(0, 38);              // external attributes
+    central.writeUInt32LE(offset, 42);         // offset of local header
+    nameBytes.copy(central, 46);
+
+    localParts.push(local, compressed);
+    centralParts.push(central);
+    offset += local.length + compressed.length;
+  }
+
+  const centralOffset = offset;
+  const centralSize = centralParts.reduce((s, b) => s + b.length, 0);
+
+  // ── End of central directory (22 bytes) ──────────────────────────────────
+  const eocd = Buffer.alloc(22);
+  eocd.writeUInt32LE(0x06054b50, 0);           // signature
+  eocd.writeUInt16LE(0, 4);                    // disk number
+  eocd.writeUInt16LE(0, 6);                    // start disk
+  eocd.writeUInt16LE(files.length, 8);         // entries on disk
+  eocd.writeUInt16LE(files.length, 10);        // total entries
+  eocd.writeUInt32LE(centralSize, 12);
+  eocd.writeUInt32LE(centralOffset, 16);
+  eocd.writeUInt16LE(0, 20);                   // comment length
+
+  return Buffer.concat([...localParts, ...centralParts, eocd]);
+}
+
+/**
+ * Intelligently merge files based on type.
+ * Always produces a valid ZIP for multiple files.
+ */
+export async function smartMergeFiles(
+  files: { name: string; buffer: Buffer; ext: string }[]
+): Promise<{ buffer: Buffer; filename: string }> {
+  if (files.length === 0) throw new Error('No files to merge');
+
+  if (files.length === 1) {
+    return { buffer: files[0].buffer, filename: files[0].name };
+  }
+
+  const zip = await mergeIntoZip(files);
+  return { buffer: zip, filename: `documents_${Date.now()}.zip` };
+}
+
+/**
+ * Check if we should attempt to merge files.
  */
 export function shouldMergeFiles(fileType: string, fileCount: number): boolean {
   const mergeableTypes = ['qpaper', 'notes', 'slides', 'lab', 'assignment'];
