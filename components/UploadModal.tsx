@@ -147,6 +147,8 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
 
   if (!isOpen) return null;
 
+  // Open UploadModal.tsx and update the style properties of the outermost motion.div (the backdrop overlay)
+
   return (
     <AnimatePresence>
       <motion.div
@@ -156,13 +158,16 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
         onClick={handleClose}
         style={{
           position: 'fixed',
-          inset: 0,
+          top: 0,                   /* FIX: Hard anchors overlay to screen top */
+          left: 0,                  /* FIX: Hard anchors overlay to screen left */
+          width: '100vw',           /* FIX: Enforce exact screen width */
+          height: '100vh',          /* FIX: Enforce exact screen height */
           background: 'rgba(0,0,0,0.75)',
           backdropFilter: 'blur(10px)',
           display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 50,
+          alignItems: 'center',     /* Vertically centers the dialog box in viewport */
+          justifyContent: 'center',  /* Horizontally centers the dialog box in viewport */
+          zIndex: 100,              /* Keeps it reliably above your sticky Navbar and Sidebar */
           padding: '16px',
         }}
       >
@@ -186,6 +191,7 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
             boxShadow: '0 24px 80px rgba(0,0,0,0.6)',
           }}
         >
+        {/* ... keeping the rest of your inner code exactly identical ... */}
           {/* Header Block */}
           <div
             style={{
