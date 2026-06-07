@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import Navbar from '@/components/Navbar';
-import Sidebar from '@/components/Sidebar';
+import Sidebar from '@/components/sidebar';
 import SemesterBlock from '@/components/SemesterBlock';
 import UploadModal from '@/components/UploadModal';
 import config from '@/config';
