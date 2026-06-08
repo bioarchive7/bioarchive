@@ -1,6 +1,9 @@
 /**
  * Direct Google Drive upload utilities for browser
- * Uses standard resumable upload protocol to bypass Vercel's payload limits
+ * STRATEGIC FIX: 
+ * - Proper resumable upload protocol
+ * - Robust error handling
+ * - Network timeout protection
  */
 
 import { SheetRow } from '@/lib/sheets';
@@ -60,20 +63,11 @@ export async function getUploadUrl(
 }
 
 /**
- * Step 2: Upload file directly to Google Drive using standard native resumable upload
- * CORRECTED: Streams the entire file natively via single PUT stream, matching the corrected backend.
- */
-/**
- * Step 2: Upload file directly to Google Drive using standard native resumable upload
- * CORRECTED: Safely handles the empty response body returned by the native completion stream.
- */
-/**
- * Step 2: Upload file directly to Google Drive using standard native resumable upload
- * CORRECTED: Reliably extracts the final file ID metadata returned by the completed API stream.
- */
-/**
- * Step 2: Upload file directly to Google Drive using standard native resumable upload
- * FIXES BOTH: Prevents network timeout drops AND properly parses final metadata JSON body.
+ * Step 2: Upload file directly to Google Drive
+ * STRATEGIC FIX: Proper resumable upload protocol with:
+ * - Correct headers
+ * - Network timeout handling
+ * - Proper response parsing
  */
 export async function uploadFileToGoogleDrive(
   file: File,
@@ -82,67 +76,87 @@ export async function uploadFileToGoogleDrive(
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
+    let uploadTimeout: NodeJS.Timeout;
 
-    // Track network upload progress natively
+    // Track progress
     if (onProgress) {
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
-          const percentComplete = (event.loaded / event.total) * 100;
-          onProgress(Math.round(percentComplete));
+          const percent = Math.round((event.loaded / event.total) * 100);
+          console.log(`[Upload] Progress: ${percent}%`);
+          onProgress(percent);
         }
       });
     }
 
-    // Handle stream completion
+    // Handle completion
     xhr.addEventListener('load', () => {
-      if (xhr.status === 200 || xhr.status === 201) {
-        try {
-          if (!xhr.responseText || xhr.responseText.trim().length === 0) {
-            reject(new Error('Google Drive finalized the upload but returned an empty response body.'));
-            return;
-          }
+      clearTimeout(uploadTimeout);
+      
+      console.log('[Upload] Complete. Status:', xhr.status);
 
-          // Parse the valid metadata payload returned by standard Drive API protocol
+      // Google Drive returns 200 on success
+      if (xhr.status === 200) {
+        try {
           const response = JSON.parse(xhr.responseText);
-          
           if (response && response.id) {
-            resolve(response.id); // Success! Passed to Step 3 registration
+            console.log('[Upload] File ID received:', response.id);
+            resolve(response.id);
           } else {
-            reject(new Error('Upload succeeded, but file metadata ID missing from Google Drive response.'));
+            reject(new Error('Response missing file ID'));
           }
-        } catch (error) {
-          console.error('Raw unparsable response content was:', xhr.responseText);
-          reject(new Error(`Failed to parse Google Drive metadata structure: ${error instanceof Error ? error.message : String(error)}`));
+        } catch (e) {
+          reject(new Error(`Failed to parse response: ${e}`));
         }
       } else {
-        console.error('Upload transaction rejected:', {
-          status: xhr.status,
-          statusText: xhr.statusText,
-          response: xhr.responseText,
-        });
-        reject(new Error(`Upload rejected with status ${xhr.status}: ${xhr.statusText}`));
+        reject(new Error(`Upload returned status ${xhr.status}`));
       }
     });
 
-    // Handle structural pipeline connection errors
-    xhr.addEventListener('error', () => reject(new Error('Network connection error during stream transfer')));
-    xhr.addEventListener('abort', () => reject(new Error('Upload stream aborted')));
-    xhr.addEventListener('timeout', () => reject(new Error('Upload session timed out')));
+    // Handle errors
+    xhr.addEventListener('error', () => {
+      clearTimeout(uploadTimeout);
+      console.error('[Upload] Network error');
+      reject(new Error('Network error during upload'));
+    });
 
-    // Dispatch the payload over an unbroken native PUT request stream
+    xhr.addEventListener('abort', () => {
+      clearTimeout(uploadTimeout);
+      console.error('[Upload] Aborted');
+      reject(new Error('Upload was cancelled'));
+    });
+
+    xhr.addEventListener('timeout', () => {
+      clearTimeout(uploadTimeout);
+      console.error('[Upload] XHR timeout');
+      reject(new Error('Upload timed out'));
+    });
+
+    // Configure request
+    console.log('[Upload] Starting file upload...');
+    console.log('[Upload] File size:', `${(file.size / 1024 / 1024).toFixed(2)}MB`);
+    
     xhr.open('PUT', uploadUrl, true);
+    
+    // STRATEGIC FIX: Correct headers for resumable upload final step
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
     
-    // 10-minute timeout window
-    xhr.timeout = 600000; 
+    // Set timeouts
+    xhr.timeout = 600000; // 10 minutes XHR timeout
+    
+    // Additional safety timeout
+    uploadTimeout = setTimeout(() => {
+      console.error('[Upload] Manual timeout triggered after 15 minutes');
+      xhr.abort();
+    }, 900000); // 15 minutes manual timeout
 
+    // Send file
     xhr.send(file);
   });
 }
 
 /**
  * Step 3: Register uploaded file in backend
- * Adds file to Google Sheets and sends notifications
  */
 export async function registerUploadedFile(
   fileId: string,
@@ -214,24 +228,34 @@ export async function uploadFileDirectToDrive(
   onProgress?: (percent: number) => void
 ): Promise<RegisterUploadResponse> {
   try {
+    console.log('[Upload Flow] Starting upload for:', file.name);
+
     // Step 1: Get upload URL
+    console.log('[Upload Flow] Step 1: Getting upload URL...');
     const uploadUrl = await getUploadUrl(
       file.name,
       file.size,
       file.type || 'application/octet-stream'
     );
+    console.log('[Upload Flow] Upload URL received');
 
     // Step 2: Upload to Google Drive
+    console.log('[Upload Flow] Step 2: Uploading file to Google Drive...');
     const fileId = await uploadFileToGoogleDrive(file, uploadUrl, onProgress);
+    console.log('[Upload Flow] File uploaded successfully');
 
     // Step 3: Register in backend
+    console.log('[Upload Flow] Step 3: Registering file in database...');
     const registration = await registerUploadedFile(fileId, metadata);
+    console.log('[Upload Flow] Registration complete');
 
     return registration;
   } catch (error) {
+    const msg = error instanceof Error ? error.message : String(error);
+    console.error('[Upload Flow] Error:', msg);
     return {
       status: 'error',
-      message: `Upload failed: ${error instanceof Error ? error.message : String(error)}`,
+      message: `Upload failed: ${msg}`,
     };
   }
 }
