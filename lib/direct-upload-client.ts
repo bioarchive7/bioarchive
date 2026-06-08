@@ -70,12 +70,16 @@ export async function getUploadUrl(
  * Step 2: Upload file directly to Google Drive using chunked resumable upload
  * Returns the file ID from Google Drive's response
  */
+/**
+ * Step 2: Upload file directly to Google Drive using chunked resumable upload
+ * CORRECTED: Explicitly handles Google Cloud Storage uploader command states
+ */
 export async function uploadFileToGoogleDrive(
   file: File,
   uploadUrl: string,
   onProgress?: (percent: number) => void
 ): Promise<string> {
-  // Must be a multiple of 262144 (256 KB). Let's use 1 MB chunks.
+  // Must be a multiple of 262144 (256 KB). Using 1 MB chunks.
   const CHUNK_SIZE = 1024 * 1024; 
   const totalSize = file.size;
   let startByte = 0;
@@ -84,62 +88,68 @@ export async function uploadFileToGoogleDrive(
     const endByte = Math.min(startByte + CHUNK_SIZE, totalSize);
     const chunk = file.slice(startByte, endByte);
     const chunkSize = endByte - startByte;
+    const isLastChunk = endByte === totalSize;
+
+    // Google protocol commands: 
+    // - "upload" for ongoing chunks
+    // - "upload, finalize" for the final chunk block
+    const uploadCommand = isLastChunk ? 'upload, finalize' : 'upload';
 
     const responseText = await new Promise<string>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
       
       xhr.open('PUT', uploadUrl, true);
       
-      // Tell Google the specific byte sequence segment being uploaded
-      xhr.setRequestHeader('Content-Length', chunkSize.toString());
-      xhr.setRequestHeader('Content-Range', `bytes ${startByte}-${endByte - 1}/${totalSize}`);
+      xhr.setRequestHeader('X-Goog-Upload-Command', uploadCommand);
+      xhr.setRequestHeader('X-Goog-Upload-Offset', startByte.toString());
       xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      
+      // Keep timeout long to handle poor connection steps
+      xhr.timeout = 60000; 
 
       if (onProgress) {
         xhr.upload.addEventListener('progress', (e) => {
           if (e.lengthComputable) {
-            // Track continuous overall file upload percentage
             const uploadedBytesSoFar = startByte + e.loaded;
             const percentComplete = (uploadedBytesSoFar / totalSize) * 100;
-            onProgress(Math.min(Math.round(percentComplete), 99)); // Cap at 99% until server returns 200/201
+            onProgress(Math.min(Math.round(percentComplete), 99));
           }
         });
       }
 
       xhr.addEventListener('load', () => {
-        // Google returns 308 Resume Incomplete for intermediate blocks
-        // and 200 OK / 201 Created for the final completion block.
         if (xhr.status === 200 || xhr.status === 201 || xhr.status === 308) {
           resolve(xhr.responseText);
         } else {
-          reject(new Error(`Chunk upload failed with status ${xhr.status}: ${xhr.statusText}`));
+          reject(new Error(`Chunk failed (${xhr.status}): ${xhr.responseText}`));
         }
       });
 
-      xhr.addEventListener('error', () => reject(new Error('Network error during chunk upload')));
-      xhr.addEventListener('abort', () => reject(new Error('Upload was cancelled')));
+      xhr.addEventListener('error', () => reject(new Error('Network connection error during chunk transfer')));
+      xhr.addEventListener('timeout', () => reject(new Error('Chunk transfer timed out')));
+      xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
       
       xhr.send(chunk);
     });
 
     startByte = endByte;
 
-    // If we've reached the end, process the final metadata response payload
-    if (startByte >= totalSize) {
+    // Process the final metadata return tracking identifier on completeness
+    if (isLastChunk) {
       try {
         const response = JSON.parse(responseText);
         if (response.id) {
           if (onProgress) onProgress(100);
           return response.id;
         }
-        throw new Error('No file ID returned from Drive API');
+        throw new Error('No file ID found in Drive finalization response');
       } catch (error) {
-        throw new Error('Failed to parse final upload response payload');
+        throw new Error('Failed to parse Google Drive validation metadata payload');
       }
     }
   }
 
-  throw new Error('Upload processing complete without returning valid file metadata');
+  throw new Error('File streaming sequence completed without finalizing session metadata state');
 }
 
 /**
