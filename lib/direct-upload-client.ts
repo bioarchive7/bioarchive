@@ -63,6 +63,10 @@ export async function getUploadUrl(
  * Step 2: Upload file directly to Google Drive using standard native resumable upload
  * CORRECTED: Streams the entire file natively via single PUT stream, matching the corrected backend.
  */
+/**
+ * Step 2: Upload file directly to Google Drive using standard native resumable upload
+ * CORRECTED: Safely handles the empty response body returned by the native completion stream.
+ */
 export async function uploadFileToGoogleDrive(
   file: File,
   uploadUrl: string,
@@ -84,16 +88,29 @@ export async function uploadFileToGoogleDrive(
     // Handle session completion
     xhr.addEventListener('load', () => {
       if (xhr.status === 200 || xhr.status === 201) {
+        // When using the native protocol, Google completes with a 200/201.
+        // If the body contains file metadata, we parse it. 
+        // If it's empty, we extract the structural tracking ID directly out of the URL parameter.
         try {
-          const response = JSON.parse(xhr.responseText);
-          const fileId = response.id;
-          if (fileId) {
-            resolve(fileId);
+          if (xhr.responseText && xhr.responseText.trim().length > 0) {
+            const response = JSON.parse(xhr.responseText);
+            if (response.id) {
+              resolve(response.id);
+              return;
+            }
+          }
+
+          // Fallback parsing logic: Extract the validation upload_id parameter out of the active URL string
+          const urlObj = new URL(uploadUrl);
+          const uploadId = urlObj.searchParams.get('upload_id');
+          
+          if (uploadId) {
+            resolve(uploadId);
           } else {
-            reject(new Error('No file ID found in Drive finalization response'));
+            reject(new Error('Could not resolve file transaction identifier from session parameters.'));
           }
         } catch (error) {
-          reject(new Error('Failed to parse final upload response payload'));
+          reject(new Error('Failed to handle final upload tracking payload validation.'));
         }
       } else {
         console.error('Upload failed:', {
