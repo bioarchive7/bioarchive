@@ -1,21 +1,17 @@
 /**
  * API Endpoint: REGISTER UPLOAD
  * Location: app/api/register-upload/route.ts
- *
- * Called by the frontend AFTER the file has been uploaded to Google Drive.
- * Registers the file metadata in Google Sheets and sends notifications.
- * The file is already on Google Drive at this point.
  */
 
 import { NextRequest, NextResponse } from 'next/server';
 import { appendFileRecord, getAllFiles } from '@/lib/sheets';
-import { computeMD5, generateFileName } from '@/lib/utils';
+import { generateFileName } from '@/lib/utils';
 import { notifyModsOfUpload } from '@/lib/notify';
 import { google } from 'googleapis';
 import config from '@/config';
 
 /**
- * Get file metadata from Google Drive by file ID
+ * Get file parent information from Google Drive to enable backup migration routing
  */
 async function getFileMetadata(fileId: string) {
   try {
@@ -33,7 +29,7 @@ async function getFileMetadata(fileId: string) {
 
     const response = await drive.files.get({
       fileId,
-      fields: 'id, name, webViewLink, webContentLink, size, mimeType',
+      fields: 'id, name, webViewLink, webContentLink, size, mimeType, parents, md5Checksum',
     });
 
     return response.data;
@@ -44,11 +40,41 @@ async function getFileMetadata(fileId: string) {
   }
 }
 
+/**
+ * Migrate target duplicate assets into the designated duplicate/backup folder dynamically
+ */
+async function moveFileToDuplicateFolder(fileId: string, currentParentId: string) {
+  try {
+    const duplicateFolderId = process.env.NEXT_PUBLIC_DUPLICATE_FOLDER_ID;
+    if (!duplicateFolderId) {
+      console.warn('NEXT_PUBLIC_DUPLICATE_FOLDER_ID not configured, bypassing asset migration');
+      return;
+    }
+
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+    const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
+
+    const auth = new google.auth.OAuth2(clientId, clientSecret);
+    auth.setCredentials({ refresh_token: refreshToken });
+    const drive = google.drive({ version: 'v3', auth });
+
+    await drive.files.update({
+      fileId,
+      addParents: duplicateFolderId,
+      removeParents: currentParentId,
+      fields: 'id, parents',
+    });
+    console.log(`[Duplicate Relocation] Moved conflicting file ${fileId} to backup directory.`);
+  } catch (error) {
+    console.error('[Duplicate Relocation] Failed moving target file asset:', error);
+  }
+}
+
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
 
-    // Extract metadata from request
     const {
       fileId,
       fileName,
@@ -73,7 +99,6 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get file metadata from Google Drive
     const driveFile = await getFileMetadata(fileId);
     if (!driveFile) {
       return NextResponse.json(
@@ -82,26 +107,48 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get all existing files to check for duplicates
-    const sheetData = await getAllFiles();
+    // Only look up duplicates for specific academic material categories
+    const checkDuplicates = fileType === 'qpaper' || fileType === 'slides';
+    let isDuplicate = false;
 
-    // For resumable uploads, we can't easily get the MD5 hash before upload
-    // Use the file ID + filename as a composite key instead
-    const md5Hash = `${fileId}:${driveFile.name}`;
+    if (checkDuplicates) {
+      const sheetData = await getAllFiles();
+      isDuplicate = sheetData.some((row) => {
+        const matchSemester = String(row.semester) === String(semester);
+        const matchYear     = String(row.year).toLowerCase() === String(year).toLowerCase();
+        const matchCourse   = String(row.courseCode).toLowerCase() === String(courseCode).toLowerCase();
+        const matchProf     = String(row.professor).toLowerCase() === String(professor).toLowerCase();
+        
+        // Match exam type specifically for question papers
+        const matchExam = fileType === 'qpaper' 
+          ? String(row.examType).toLowerCase() === String(examType).toLowerCase()
+          : true;
 
-    // Check if file already exists
-    const isDuplicate = sheetData.some((row) => row.md5Hash === md5Hash);
+        return matchSemester && matchYear && matchCourse && matchProf && matchExam;
+      });
+    }
+
     if (isDuplicate) {
+      const originalParent = (driveFile.parents && driveFile.parents[0]) || '';
+      if (originalParent) {
+        await moveFileToDuplicateFolder(fileId, originalParent);
+      }
+
       return NextResponse.json(
         {
           status: 'duplicate',
-          message: 'This file already exists in our database',
+          message: 'This syllabus item has already been submitted. Sent copy to backups!',
+          data: {
+            fileId,
+            fileName: driveFile.name,
+            webViewLink: driveFile.webViewLink,
+            webContentLink: driveFile.webContentLink,
+          }
         },
-        { status: 400 }
+        { status: 200 }
       );
     }
 
-    // Generate standard filename if not provided
     const finalFileName = fileName || generateFileName({
       semester: parseInt(semester),
       courseCode,
@@ -110,25 +157,20 @@ export async function POST(request: NextRequest) {
       originalName: driveFile.name || 'file',
     });
 
-    // Prepare professor list
-    const professorList = [
-      professor,
-      professor2 || null,
-      professor3 || null,
-    ]
-      .filter(Boolean)
-      .join('; ');
-
-    // Register in Google Sheets
     const uploadDate = new Date().toISOString().split('T')[0];
+    const md5Hash = driveFile.md5Checksum || `${fileId}:${driveFile.name}`;
+
+    // Appends cleanly to match all columns A-R in your database schema index sequentially
     await appendFileRecord({
       fileId,
       semester,
-      year,
+      year: year || '',
       courseCode,
-      courseName,
-      professor: professorList,
-      examType,
+      courseName: courseName || '',
+      professor: professor || '',
+      professor2: professor2 || '',
+      professor3: professor3 || '',
+      examType: examType || 'na',
       fileType,
       fileName: finalFileName,
       uploaderName: uploaderName || 'Anonymous',
@@ -140,7 +182,6 @@ export async function POST(request: NextRequest) {
       remarks: remarks || '',
     });
 
-    // Send mod notification
     await notifyModsOfUpload({
       fileName: finalFileName,
       courseCode,
@@ -151,10 +192,7 @@ export async function POST(request: NextRequest) {
       examType,
       uploaderName: uploaderName || 'Anonymous',
       webViewLink: driveFile.webViewLink || '',
-    }).catch((err) => {
-      console.error('Notification failed:', err);
-      // Don't fail registration if notification fails
-    });
+    }).catch((err) => console.error('Notification failed:', err));
 
     return NextResponse.json(
       {
@@ -172,12 +210,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     const errorMsg = error instanceof Error ? error.message : String(error);
     console.error('Register upload error:', error);
-
     return NextResponse.json(
-      {
-        status: 'error',
-        message: `Failed to register upload: ${errorMsg}`,
-      },
+      { status: 'error', message: `Failed to register upload: ${errorMsg}` },
       { status: 500 }
     );
   }

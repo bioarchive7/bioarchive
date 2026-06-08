@@ -110,11 +110,10 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
       filesToAdd.push(file);
     }
     
-    // For single file types or if adding to existing
     if (isMultiFileType) {
       setUploadedFiles([...uploadedFiles, ...filesToAdd]);
     } else {
-      setUploadedFiles(filesToAdd.slice(0, 1)); // Only one file for non-multi types
+      setUploadedFiles(filesToAdd.slice(0, 1));
     }
     
     setUploadStatus('idle');
@@ -126,21 +125,18 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
   };
 
   const handleSubmit = async () => {
-    // Validation
     if (!semester || !courseCode || !fileType || uploadedFiles.length === 0 || !professor) {
       setUploadStatus('error');
       setUploadMessage('Please fill in all required fields and upload at least one file');
       return;
     }
 
-    // Year is required for all file types
     if (!year) {
       setUploadStatus('error');
       setUploadMessage('Please enter the year');
       return;
     }
 
-    // Check for "other" field explanations
     if (fileType === 'other' && !otherFileType.trim()) {
       setUploadStatus('error');
       setUploadMessage('Please specify what "other" file type means');
@@ -171,14 +167,12 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
     setUploadMessage('');
 
     try {
-      // Upload each file using the new direct-to-Drive method
       let successCount = 0;
+      let duplicateCount = 0;
       let errorOccurred = false;
 
       for (let i = 0; i < uploadedFiles.length; i++) {
         const file = uploadedFiles[i];
-        
-        // Update progress for each file
         const fileProgress = (i / uploadedFiles.length) * 100;
         setUploadProgress(Math.round(fileProgress));
 
@@ -199,7 +193,6 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
             remarks: remarks || undefined,
           },
           (progress) => {
-            // Adjust progress to account for multiple files
             const totalProgress = fileProgress + (progress / uploadedFiles.length);
             setUploadProgress(Math.round(totalProgress));
           }
@@ -208,6 +201,7 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
         if (result.status === 'success') {
           successCount++;
         } else if (result.status === 'duplicate') {
+          duplicateCount++;
           setUploadStatus('duplicate');
           setUploadMessage(result.message);
           errorOccurred = true;
@@ -220,13 +214,16 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
         }
       }
 
+      // Automatically unmount/close modal box panel window after a 2.5s display delay on successful/duplicate submissions
       if (!errorOccurred) {
         setUploadProgress(100);
         setUploadStatus('success');
         setUploadMessage(
           `${successCount} file${successCount !== 1 ? 's' : ''} uploaded successfully!`
         );
-        setTimeout(() => { resetForm(); onClose?.(); }, 2500);
+        setTimeout(() => { handleClose(); }, 2500);
+      } else if (uploadStatus === 'duplicate' || duplicateCount > 0) {
+        setTimeout(() => { handleClose(); }, 3500);
       }
     } catch (error) {
       setUploadStatus('error');
@@ -317,7 +314,7 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
               flexDirection: 'column',
             }}
           >
-            {/* ── Header ──────────────────────────────────── */}
+            {/* Header */}
             <div
               style={{
                 display: 'flex',
@@ -328,41 +325,25 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                 flexShrink: 0,
               }}
             >
-              <p
-                style={{
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: 'var(--text)',
-                  margin: 0,
-                }}
-              >
-                {uploadStatus === 'success' || uploadStatus === 'duplicate' ? '✓ Upload Complete' : 'Upload Study Material'}
+              <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+                {uploadStatus === 'success' || uploadStatus === 'duplicate' ? '✓ Processing Finished' : 'Upload Study Material'}
               </p>
-              <button
-                onClick={handleClose}
-                style={{
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  color: 'var(--text-3)',
-                  padding: 0,
-                }}
-              >
+              <button onClick={handleClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 0 }}>
                 <X size={18} />
               </button>
             </div>
 
-            {/* ── Content ─────────────────────────────────── */}
+            {/* Content Body */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
               {uploadStatus === 'success' || uploadStatus === 'duplicate' ? (
-                <motion.div
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  style={{ textAlign: 'center', padding: '40px 20px' }}
-                >
-                  <CheckCircle size={48} style={{ color: 'var(--green-bright)', margin: '0 auto 16px' }} />
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', padding: '40px 20px' }}>
+                  {uploadStatus === 'duplicate' ? (
+                    <AlertCircle size={48} style={{ color: 'var(--gold)', margin: '0 auto 16px' }} />
+                  ) : (
+                    <CheckCircle size={48} style={{ color: 'var(--green-bright)', margin: '0 auto 16px' }} />
+                  )}
                   <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)', marginBottom: '8px' }}>
-                    {uploadStatus === 'duplicate' ? 'File Already Exists' : 'Upload Successful!'}
+                    {uploadStatus === 'duplicate' ? 'Material Entry Exists' : 'Upload Successful!'}
                   </p>
                   <p style={{ fontSize: '13px', color: 'var(--text-2)', lineHeight: 1.6 }}>
                     {uploadMessage}
@@ -376,7 +357,7 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                           <div>
                             <label style={labelStyle}>Semester <span style={{ color: '#fca5a5' }}>*</span></label>
-                            <select value={semester} onChange={(e) => { setSemester(e.target.value); setCourseCode(''); }} style={{ ...inputStyle, appearance: 'none' }} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}>
+                            <select value={semester} onChange={(e) => { setSemester(e.target.value); setCourseCode(''); }} style={{ ...inputStyle, appearance: 'none' }}>
                               <option value="" style={{ background: '#0a1a0f' }}>Select Semester</option>
                               {config.NISER_SEMESTERS.map((s) => <option key={s} value={s} style={{ background: '#0a1a0f' }}>Semester {s}</option>)}
                             </select>
@@ -384,12 +365,12 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
 
                           <div>
                             <label style={labelStyle}>Year <span style={{ color: '#fca5a5' }}>*</span></label>
-                            <input type="text" value={year} onChange={(e) => setYear(e.target.value)} placeholder="e.g., 2024 or 2023-24" style={inputStyle} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')} />
+                            <input type="text" value={year} onChange={(e) => setYear(e.target.value)} placeholder="e.g., 2024 or 2023-24" style={inputStyle} />
                           </div>
 
                           <div>
                             <label style={labelStyle}>Course <span style={{ color: '#fca5a5' }}>*</span></label>
-                            <select value={courseCode} onChange={(e) => { setCourseCode(e.target.value); const c = courses.find((x) => x.code === e.target.value); setCourseName(c?.name || ''); }} style={{ ...inputStyle, appearance: 'none' }} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}>
+                            <select value={courseCode} onChange={(e) => { setCourseCode(e.target.value); const c = courses.find((x) => x.code === e.target.value); setCourseName(c?.name || ''); }} style={{ ...inputStyle, appearance: 'none' }}>
                               <option value="" style={{ background: '#0a1a0f' }}>Select Course</option>
                               {courses.map((c) => <option key={c.code} value={c.code} style={{ background: '#0a1a0f' }}>{c.code} — {c.name}</option>)}
                             </select>
@@ -397,7 +378,7 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
 
                           <div>
                             <label style={labelStyle}>Professor <span style={{ color: '#fca5a5' }}>*</span></label>
-                            <select value={professor} onChange={(e) => setProfessor(e.target.value)} style={{ ...inputStyle, appearance: 'none' }} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}>
+                            <select value={professor} onChange={(e) => setProfessor(e.target.value)} style={{ ...inputStyle, appearance: 'none' }}>
                               <option value="" style={{ background: '#0a1a0f' }}>Select Primary Professor</option>
                               {allProfessors.map((p) => <option key={p} value={p} style={{ background: '#0a1a0f' }}>{p}</option>)}
                             </select>
@@ -406,13 +387,13 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                           {showOtherProfessorField && (
                             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
                               <label style={labelStyle}>Mention Other Professor <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
-                              <input type="text" value={otherProfessor} onChange={(e) => setOtherProfessor(e.target.value)} placeholder="Enter professor name" style={inputStyle} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')} />
+                              <input type="text" value={otherProfessor} onChange={(e) => setOtherProfessor(e.target.value)} placeholder="Enter professor name" style={inputStyle} />
                             </motion.div>
                           )}
 
                           <div>
                             <label style={labelStyle}>Professor 2 <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
-                            <select value={professor2} onChange={(e) => setProfessor2(e.target.value)} style={{ ...inputStyle, appearance: 'none' }} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}>
+                            <select value={professor2} onChange={(e) => setProfessor2(e.target.value)} style={{ ...inputStyle, appearance: 'none' }}>
                               <option value="" style={{ background: '#0a1a0f' }}>Select Professor (optional)</option>
                               {allProfessors.map((p) => <option key={p} value={p} style={{ background: '#0a1a0f' }}>{p}</option>)}
                             </select>
@@ -420,7 +401,7 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
 
                           <div>
                             <label style={labelStyle}>Professor 3 <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
-                            <select value={professor3} onChange={(e) => setProfessor3(e.target.value)} style={{ ...inputStyle, appearance: 'none' }} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}>
+                            <select value={professor3} onChange={(e) => setProfessor3(e.target.value)} style={{ ...inputStyle, appearance: 'none' }}>
                               <option value="" style={{ background: '#0a1a0f' }}>Select Professor (optional)</option>
                               {allProfessors.map((p) => <option key={p} value={p} style={{ background: '#0a1a0f' }}>{p}</option>)}
                             </select>
@@ -441,7 +422,7 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                           <div>
                             <label style={labelStyle}>File Type <span style={{ color: '#fca5a5' }}>*</span></label>
-                            <select value={fileType} onChange={(e) => setFileType(e.target.value)} style={{ ...inputStyle, appearance: 'none' }} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}>
+                            <select value={fileType} onChange={(e) => setFileType(e.target.value)} style={{ ...inputStyle, appearance: 'none' }}>
                               <option value="" style={{ background: '#0a1a0f' }}>Select File Type</option>
                               {FILE_TYPE_OPTIONS.map((ft) => <option key={ft.value} value={ft.value} style={{ background: '#0a1a0f' }}>{ft.label}</option>)}
                             </select>
@@ -450,7 +431,7 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                           {showOtherFileTypeField && (
                             <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
                               <label style={labelStyle}>Mention Other File Type <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
-                              <input type="text" value={otherFileType} onChange={(e) => setOtherFileType(e.target.value)} placeholder="What type of file is this?" style={inputStyle} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')} />
+                              <input type="text" value={otherFileType} onChange={(e) => setOtherFileType(e.target.value)} placeholder="What type of file is this?" style={inputStyle} />
                             </motion.div>
                           )}
 
@@ -458,7 +439,7 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                             <AnimatePresence>
                               <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
                                 <label style={labelStyle}>Exam Type <span style={{ color: '#fca5a5' }}>*</span></label>
-                                <select value={examType} onChange={(e) => setExamType(e.target.value)} style={{ ...inputStyle, appearance: 'none' }} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}>
+                                <select value={examType} onChange={(e) => setExamType(e.target.value)} style={{ ...inputStyle, appearance: 'none' }}>
                                   <option value="" style={{ background: '#0a1a0f' }}>Select Exam Type</option>
                                   {EXAM_TYPES.map((et) => <option key={et.value} value={et.value} style={{ background: '#0a1a0f' }}>{et.label}</option>)}
                                   <option value="other" style={{ background: '#0a1a0f' }}>Other</option>
@@ -468,7 +449,7 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                               {showOtherExamTypeField && (
                                 <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ marginTop: '12px' }}>
                                   <label style={labelStyle}>Mention Other Exam Type <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
-                                  <input type="text" value={otherExamType} onChange={(e) => setOtherExamType(e.target.value)} placeholder="e.g., Pre-Sem Exam" style={inputStyle} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')} />
+                                  <input type="text" value={otherExamType} onChange={(e) => setOtherExamType(e.target.value)} placeholder="e.g., Pre-Sem Exam" style={inputStyle} />
                                 </motion.div>
                               )}
                             </AnimatePresence>
@@ -490,37 +471,18 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                                 textAlign: 'center',
                                 cursor: 'pointer',
                                 background: 'rgba(212,168,83,0.04)',
-                                transition: 'background 0.2s',
                               }}
-                              onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = 'rgba(212,168,83,0.08)')}
-                              onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.background = 'rgba(212,168,83,0.04)')}
                             >
                               <Upload size={28} style={{ margin: '0 auto 8px', color: 'var(--gold)' }} />
-                              <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-2)', marginBottom: '4px' }}>
-                                Drag and drop or click to select
-                              </p>
-                              <p style={{ fontSize: '11px', color: 'var(--text-3)' }}>
-                                {config.ALLOWED_FILE_TYPES.map((t) => `.${t}`).join(', ')} · Max {config.MAX_UPLOAD_SIZE_MB}MB per file
-                              </p>
+                              <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-2)', marginBottom: '4px' }}>Drag and drop or click to select</p>
+                              <p style={{ fontSize: '11px', color: 'var(--text-3)' }}>{config.ALLOWED_FILE_TYPES.map((t) => `.${t}`).join(', ')} · Max {config.MAX_UPLOAD_SIZE_MB}MB per file</p>
                               <input ref={fileInputRef} type="file" onChange={(e) => handleFileSelect(e.target.files)} style={{ display: 'none' }} multiple={!!isMultiFileType} />
                             </div>
 
                             {uploadedFiles.length > 0 && (
                               <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                                 {uploadedFiles.map((file, idx) => (
-                                  <div
-                                    key={idx}
-                                    style={{
-                                      padding: '10px 14px',
-                                      background: 'rgba(82,183,136,0.1)',
-                                      border: '1px solid rgba(82,183,136,0.25)',
-                                      borderRadius: '10px',
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'space-between',
-                                      gap: '10px',
-                                    }}
-                                  >
+                                  <div key={idx} style={{ padding: '10px 14px', background: 'rgba(82,183,136,0.1)', border: '1px solid rgba(82,183,136,0.25)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
                                     <div>
                                       <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--green-bright)', marginBottom: '2px' }}>{file.name}</p>
                                       <p style={{ fontSize: '11px', color: 'var(--text-3)' }}>{formatFileSize(file.size)}</p>
@@ -535,16 +497,12 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                           </div>
 
                           {uploadStatus === 'error' && (
-                            <p style={{ fontSize: '12px', color: '#fca5a5', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '10px 12px' }}>
-                              {uploadMessage}
-                            </p>
+                            <p style={{ fontSize: '12px', color: '#fca5a5', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '10px 12px' }}>{uploadMessage}</p>
                           )}
 
                           <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
                             <button onClick={() => setStep(1)} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px' }}><ChevronLeft size={15} /> Back</button>
-                            <button onClick={() => setStep(3)} disabled={!canStep2} className="btn-gold" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: canStep2 ? 1 : 0.4, cursor: canStep2 ? 'pointer' : 'not-allowed' }}>
-                              Next <ChevronRight size={15} />
-                            </button>
+                            <button onClick={() => setStep(3)} disabled={!canStep2} className="btn-gold" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: canStep2 ? 1 : 0.4, cursor: canStep2 ? 'pointer' : 'not-allowed' }}>Next <ChevronRight size={15} /></button>
                           </div>
                         </div>
                       </motion.div>
@@ -567,31 +525,17 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
 
                           <div>
                             <label style={labelStyle}>Your Name <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
-                            <input type="text" value={uploaderName} onChange={(e) => setUploaderName(e.target.value)} placeholder="Leave blank to stay anonymous" style={inputStyle} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')} />
+                            <input type="text" value={uploaderName} onChange={(e) => setUploaderName(e.target.value)} placeholder="Leave blank to stay anonymous" style={inputStyle} />
                           </div>
 
                           <div>
                             <label style={labelStyle}>Remarks <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
-                            <textarea
-                              value={remarks}
-                              onChange={(e) => setRemarks(e.target.value)}
-                              placeholder="Any additional notes about these files..."
-                              style={{
-                                ...inputStyle,
-                                fontFamily: "'Outfit', sans-serif",
-                                minHeight: '80px',
-                                resize: 'vertical',
-                              }}
-                              onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')}
-                              onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')}
-                            />
+                            <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Any additional notes about these files..." style={{ ...inputStyle, fontFamily: "'Outfit', sans-serif", minHeight: '80px', resize: 'vertical' }} />
                           </div>
 
                           <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 14px', background: 'rgba(116,198,157,0.06)', border: '1px solid rgba(116,198,157,0.15)', borderRadius: '10px' }}>
                             <input type="checkbox" id="consent" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ marginTop: '2px', accentColor: 'var(--green-bright)', width: '14px', height: '14px' }} />
-                            <label htmlFor="consent" style={{ fontSize: '12px', color: 'var(--text-2)', cursor: 'pointer', lineHeight: 1.5 }}>
-                              I consent to having my name displayed with this upload
-                            </label>
+                            <label htmlFor="consent" style={{ fontSize: '12px', color: 'var(--text-2)', cursor: 'pointer', lineHeight: 1.5 }}>I consent to having my name displayed with this upload</label>
                           </div>
 
                           {uploadStatus === 'uploading' && (
