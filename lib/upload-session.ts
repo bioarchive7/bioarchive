@@ -120,7 +120,8 @@ export async function createResumableUploadUrl(
     console.log('[Upload Session] Initiating resumable upload with Google Drive API...');
 
     // Step 3: Initiate resumable upload session
-    // FIX: Added X-Goog-Upload-Command: start header (REQUIRED by Google Drive API)
+    // Session initiation: POST metadata, get Location header back
+    // Note: X-Goog-Upload-Command is NOT used here - only in the actual upload request
     const initiateResponse = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
       {
@@ -129,7 +130,6 @@ export async function createResumableUploadUrl(
           'Authorization': `Bearer ${access_token}`,
           'Content-Type': 'application/json',
           'X-Goog-Upload-Protocol': 'resumable',
-          'X-Goog-Upload-Command': 'start',                    // ← ADDED THIS LINE
           'X-Goog-Upload-Header-Content-Length': params.fileSize.toString(),
           'X-Goog-Upload-Header-Content-Type': params.mimeType,
         },
