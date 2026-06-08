@@ -1,6 +1,6 @@
 /**
  * Direct Google Drive upload utilities for browser
- * Uses resumable upload protocol to bypass Vercel's payload limits
+ * Uses standard resumable upload protocol to bypass Vercel's payload limits
  */
 
 import { SheetRow } from '@/lib/sheets';
@@ -60,96 +60,68 @@ export async function getUploadUrl(
 }
 
 /**
- * Step 2: Upload file directly to Google Drive using resumable upload
- * Returns the file ID from Google Drive's response
- * 
- * BUG FIX: Removed X-Goog-Upload-* headers from final PUT request
- * These headers are only for the initial session creation, not for the final upload
- */
-/**
- * Step 2: Upload file directly to Google Drive using chunked resumable upload
- * Returns the file ID from Google Drive's response
- */
-/**
- * Step 2: Upload file directly to Google Drive using chunked resumable upload
- * CORRECTED: Explicitly handles Google Cloud Storage uploader command states
+ * Step 2: Upload file directly to Google Drive using standard native resumable upload
+ * CORRECTED: Streams the entire file natively via single PUT stream, matching the corrected backend.
  */
 export async function uploadFileToGoogleDrive(
   file: File,
   uploadUrl: string,
   onProgress?: (percent: number) => void
 ): Promise<string> {
-  // Must be a multiple of 262144 (256 KB). Using 1 MB chunks.
-  const CHUNK_SIZE = 1024 * 1024; 
-  const totalSize = file.size;
-  let startByte = 0;
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
 
-  while (startByte < totalSize) {
-    const endByte = Math.min(startByte + CHUNK_SIZE, totalSize);
-    const chunk = file.slice(startByte, endByte);
-    const chunkSize = endByte - startByte;
-    const isLastChunk = endByte === totalSize;
-
-    // Google protocol commands: 
-    // - "upload" for ongoing chunks
-    // - "upload, finalize" for the final chunk block
-    const uploadCommand = isLastChunk ? 'upload, finalize' : 'upload';
-
-    const responseText = await new Promise<string>((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      
-      xhr.open('PUT', uploadUrl, true);
-      
-      xhr.setRequestHeader('X-Goog-Upload-Command', uploadCommand);
-      xhr.setRequestHeader('X-Goog-Upload-Offset', startByte.toString());
-      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-      
-      // Keep timeout long to handle poor connection steps
-      xhr.timeout = 60000; 
-
-      if (onProgress) {
-        xhr.upload.addEventListener('progress', (e) => {
-          if (e.lengthComputable) {
-            const uploadedBytesSoFar = startByte + e.loaded;
-            const percentComplete = (uploadedBytesSoFar / totalSize) * 100;
-            onProgress(Math.min(Math.round(percentComplete), 99));
-          }
-        });
-      }
-
-      xhr.addEventListener('load', () => {
-        if (xhr.status === 200 || xhr.status === 201 || xhr.status === 308) {
-          resolve(xhr.responseText);
-        } else {
-          reject(new Error(`Chunk failed (${xhr.status}): ${xhr.responseText}`));
+    // Track standard upload stream progress natively
+    if (onProgress) {
+      xhr.upload.addEventListener('progress', (event) => {
+        if (event.lengthComputable) {
+          const percentComplete = (event.loaded / event.total) * 100;
+          onProgress(Math.round(percentComplete));
         }
       });
+    }
 
-      xhr.addEventListener('error', () => reject(new Error('Network connection error during chunk transfer')));
-      xhr.addEventListener('timeout', () => reject(new Error('Chunk transfer timed out')));
-      xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
-      
-      xhr.send(chunk);
+    // Handle session completion
+    xhr.addEventListener('load', () => {
+      if (xhr.status === 200 || xhr.status === 201) {
+        try {
+          const response = JSON.parse(xhr.responseText);
+          const fileId = response.id;
+          if (fileId) {
+            resolve(fileId);
+          } else {
+            reject(new Error('No file ID found in Drive finalization response'));
+          }
+        } catch (error) {
+          reject(new Error('Failed to parse final upload response payload'));
+        }
+      } else {
+        console.error('Upload failed:', {
+          status: xhr.status,
+          statusText: xhr.statusText,
+          response: xhr.responseText,
+        });
+        reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.statusText}`));
+      }
     });
 
-    startByte = endByte;
+    xhr.addEventListener('error', () => {
+      console.error('Network connection error during transfer');
+      reject(new Error('Network connection error during transfer'));
+    });
 
-    // Process the final metadata return tracking identifier on completeness
-    if (isLastChunk) {
-      try {
-        const response = JSON.parse(responseText);
-        if (response.id) {
-          if (onProgress) onProgress(100);
-          return response.id;
-        }
-        throw new Error('No file ID found in Drive finalization response');
-      } catch (error) {
-        throw new Error('Failed to parse Google Drive validation metadata payload');
-      }
-    }
-  }
+    xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
+    xhr.addEventListener('timeout', () => reject(new Error('Upload timed out')));
 
-  throw new Error('File streaming sequence completed without finalizing session metadata state');
+    // Execute standard native uploader PUT request
+    xhr.open('PUT', uploadUrl, true);
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+    
+    // 10 minutes timeout window to avoid drops
+    xhr.timeout = 600000; 
+
+    xhr.send(file);
+  });
 }
 
 /**

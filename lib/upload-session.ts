@@ -1,8 +1,8 @@
 /**
  * Create a resumable upload session with Google Drive
  * Returns an upload URL that the browser can use to upload directly to Drive
- * 
- * CORRECT IMPLEMENTATION - follows Google Drive API documentation exactly
+ * * CORRECT IMPLEMENTATION - follows Google Drive API documentation exactly
+ * Switches from the complex GCS protocol headers to the standard native Drive protocol.
  */
 
 import config from '@/config';
@@ -54,15 +54,8 @@ async function getAccessToken(): Promise<string> {
 
 /**
  * Create resumable upload session with Google Drive
- * CORRECT: Follows Google Drive Resumable Upload Protocol exactly
- * 
- * Request headers needed:
- * - X-Goog-Upload-Protocol: resumable (enables resumable protocol)
- * - X-Goog-Upload-Command: start (initiates session, returns Location header)
- * - X-Goog-Upload-Header-Content-Length: [file size]
- * - X-Goog-Upload-Header-Content-Type: [mime type]
- * 
- * Response: 200 OK with Location header containing upload session URI
+ * CORRECT: Follows Google Drive Native Resumable Upload Protocol exactly.
+ * Bypasses GCS bypass mechanics which cause browser stream timeouts.
  */
 export async function createResumableUploadUrl(
   params: UploadSessionParams
@@ -99,18 +92,16 @@ export async function createResumableUploadUrl(
 
     console.log('[Upload Session] Initiating resumable session...');
 
-    // Make request to Google Drive API
+    // Make request to standard Google Drive API Resumable Uploader endpoint
     const response = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
       {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${accessToken}`,
-          'Content-Type': 'application/json',
-          'X-Goog-Upload-Protocol': 'resumable',
-          'X-Goog-Upload-Command': 'start',
-          'X-Goog-Upload-Header-Content-Length': params.fileSize.toString(),
-          'X-Goog-Upload-Header-Content-Type': params.mimeType,
+          'Content-Type': 'application/json; charset=UTF-8',
+          'X-Upload-Content-Type': params.mimeType,
+          'X-Upload-Content-Length': params.fileSize.toString(),
         },
         body: JSON.stringify(metadata),
       }
@@ -128,22 +119,19 @@ export async function createResumableUploadUrl(
       throw new Error(`Google Drive API (${response.status}): ${errorBody}`);
     }
 
-    // Extract Location header (case-insensitive)
-    // Try multiple variations to handle any case sensitivity issues
-    // Extract Location header or the Google-specific upload URL header
+    // Native protocol reliably uses standard 'location' header
     let uploadUrl = 
-    response.headers.get('location') ||
-    response.headers.get('Location') ||
-    response.headers.get('LOCATION') ||
-    response.headers.get('x-goog-upload-url'); // <-- Add this fallback
+      response.headers.get('location') ||
+      response.headers.get('Location') ||
+      response.headers.get('LOCATION');
 
     // If still not found, log all headers for debugging
     if (!uploadUrl) {
-    console.error('[Upload Session] Location header not found. All headers:');
-    for (const [key, value] of response.headers.entries()) {
+      console.error('[Upload Session] Location header not found. All headers:');
+      for (const [key, value] of response.headers.entries()) {
         console.error(`  ${key}: ${value}`);
-    }
-    throw new Error('Google Drive did not return Location header');
+      }
+      throw new Error('Google Drive did not return Location header');
     }
 
     console.log('[Upload Session] Resumable session created');
