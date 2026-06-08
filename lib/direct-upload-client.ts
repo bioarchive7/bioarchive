@@ -67,6 +67,10 @@ export async function getUploadUrl(
  * Step 2: Upload file directly to Google Drive using standard native resumable upload
  * CORRECTED: Safely handles the empty response body returned by the native completion stream.
  */
+/**
+ * Step 2: Upload file directly to Google Drive using standard native resumable upload
+ * CORRECTED: Reliably extracts the final file ID metadata returned by the completed API stream.
+ */
 export async function uploadFileToGoogleDrive(
   file: File,
   uploadUrl: string,
@@ -87,30 +91,24 @@ export async function uploadFileToGoogleDrive(
 
     // Handle session completion
     xhr.addEventListener('load', () => {
+      // Both 200 OK and 201 Created indicate the entire payload was received and written successfully
       if (xhr.status === 200 || xhr.status === 201) {
-        // When using the native protocol, Google completes with a 200/201.
-        // If the body contains file metadata, we parse it. 
-        // If it's empty, we extract the structural tracking ID directly out of the URL parameter.
         try {
-          if (xhr.responseText && xhr.responseText.trim().length > 0) {
-            const response = JSON.parse(xhr.responseText);
-            if (response.id) {
-              resolve(response.id);
-              return;
-            }
+          if (!xhr.responseText || xhr.responseText.trim().length === 0) {
+            reject(new Error('Google Drive finalized the upload but returned an empty response body.'));
+            return;
           }
 
-          // Fallback parsing logic: Extract the validation upload_id parameter out of the active URL string
-          const urlObj = new URL(uploadUrl);
-          const uploadId = urlObj.searchParams.get('upload_id');
+          const response = JSON.parse(xhr.responseText);
           
-          if (uploadId) {
-            resolve(uploadId);
+          if (response && response.id) {
+            resolve(response.id);
           } else {
-            reject(new Error('Could not resolve file transaction identifier from session parameters.'));
+            reject(new Error('Upload completed, but no structural asset file ID was found in the metadata response.'));
           }
         } catch (error) {
-          reject(new Error('Failed to handle final upload tracking payload validation.'));
+          console.error('JSON parsing failed. Raw response content was:', xhr.responseText);
+          reject(new Error(`Failed to parse final Google Drive upload metadata: ${error instanceof Error ? error.message : String(error)}`));
         }
       } else {
         console.error('Upload failed:', {
