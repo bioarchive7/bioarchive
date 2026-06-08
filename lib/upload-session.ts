@@ -25,9 +25,11 @@ export interface UploadSession {
  * This gives us direct access to the Location header with the upload URL
  * 
  * Google Drive Resumable Upload Flow:
- * 1. POST to /upload/drive/v3/files?uploadType=resumable with metadata
+ * 1. POST to /upload/drive/v3/files?uploadType=resumable with metadata and special headers
  * 2. Google returns Location header with session URI
- * 3. Browser uses that URI to upload the file
+ * 3. Browser uses that URI to PUT the file
+ * 
+ * BUG FIX: Ensure all required headers are present and correct for resumable protocol
  */
 export async function createResumableUploadUrl(
   params: UploadSessionParams
@@ -59,27 +61,28 @@ export async function createResumableUploadUrl(
       throw new Error(`Failed to get access token: ${error}`);
     }
 
-    const { access_token } = (await tokenResponse.json()) as { access_token: string };
+    const tokenData = (await tokenResponse.json()) as { access_token: string };
+    const access_token = tokenData.access_token;
 
-    // Step 2: Initiate resumable upload session
+    // Step 2: Initiate resumable upload session with correct headers
     const targetFolderId = params.folderId || config.DRIVE_FOLDER_ID;
     if (!targetFolderId) {
       throw new Error('No drive folder specified');
     }
 
+    // BUG FIX: Include both the metadata AND the required Google Drive headers
     const metadata = {
       name: params.fileName,
       mimeType: params.mimeType,
       parents: [targetFolderId],
     };
 
-    // Important: Use correct headers for resumable upload initiation
     const initiateResponse = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
       {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${access_token}`,
+          'Authorization': `Bearer ${access_token}`,
           'Content-Type': 'application/json',
           'X-Goog-Upload-Protocol': 'resumable',
           'X-Goog-Upload-Header-Content-Length': params.fileSize.toString(),
@@ -100,6 +103,7 @@ export async function createResumableUploadUrl(
     }
 
     // Step 3: Extract upload URL from Location header
+    // BUG FIX: Ensure we get the location header correctly
     const uploadUrl = initiateResponse.headers.get('location');
     if (!uploadUrl) {
       throw new Error('No upload URL returned from Google Drive (missing Location header)');

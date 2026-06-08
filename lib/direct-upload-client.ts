@@ -62,6 +62,9 @@ export async function getUploadUrl(
 /**
  * Step 2: Upload file directly to Google Drive using resumable upload
  * Returns the file ID from Google Drive's response
+ * 
+ * BUG FIX: Removed X-Goog-Upload-* headers from final PUT request
+ * These headers are only for the initial session creation, not for the final upload
  */
 export async function uploadFileToGoogleDrive(
   file: File,
@@ -124,11 +127,9 @@ export async function uploadFileToGoogleDrive(
     // Configure request - use PUT for resumable upload finalization
     xhr.open('PUT', uploadUrl, true);
     
-    // Set required headers for resumable upload
+    // FIX: Only set Content-Type header for final upload
+    // Do NOT set X-Goog-Upload-* headers here - those are only for session initiation
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-    xhr.setRequestHeader('X-Goog-Upload-Protocol', 'resumable');
-    xhr.setRequestHeader('X-Goog-Upload-Command', 'upload, finalize');
-    xhr.setRequestHeader('X-Goog-Upload-Content-Length', file.size.toString());
     
     xhr.timeout = 300000; // 5 minutes
 

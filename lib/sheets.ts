@@ -78,27 +78,28 @@ export function initSheetsClient(): GoogleSheetsClient {
 
 /**
  * Convert array values to SheetRow object
+ * BUG FIX: Corrected array indices to match SHEET_HEADERS order
  */
 function rowToSheetRow(values: any[]): SheetRow {
   return {
     fileId: values[0] || '',
     semester: values[1] || '',
     year: values[2] || '',
-    courseCode: values[2] || '',
-    courseName: values[3] || '',
-    professor: values[4] || '',
-    professor2: values[5] || '',        // NEW
-    professor3: values[6] || '',        // NEW
-    examType: values[7] || '',
-    fileType: values[8] || '',
-    fileName: values[9] || '',
-    uploaderName: values[10] || '',
-    uploadDate: values[11] || '',
-    md5Hash: values[12] || '',
-    webViewLink: values[13] || '',
-    webContentLink: values[14] || '',
-    downloadCount: parseInt(values[15]) || 0,
-    remarks: values[16] || '',          // NEW
+    courseCode: values[3] || '',        // FIX: Was values[2]
+    courseName: values[4] || '',        // FIX: Was values[3]
+    professor: values[5] || '',         // FIX: Was values[4]
+    professor2: values[6] || '',        // FIX: Was values[5]
+    professor3: values[7] || '',        // FIX: Was values[6]
+    examType: values[8] || '',          // FIX: Was values[7]
+    fileType: values[9] || '',          // FIX: Was values[8]
+    fileName: values[10] || '',         // FIX: Was values[9]
+    uploaderName: values[11] || '',     // FIX: Was values[10]
+    uploadDate: values[12] || '',       // FIX: Was values[11]
+    md5Hash: values[13] || '',          // FIX: Was values[12]
+    webViewLink: values[14] || '',      // FIX: Was values[13]
+    webContentLink: values[15] || '',   // FIX: Was values[14]
+    downloadCount: parseInt(values[16]) || 0, // FIX: Was values[15]
+    remarks: values[17] || '',          // FIX: Was values[16]
   };
 }
 
