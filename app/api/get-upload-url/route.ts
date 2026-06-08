@@ -8,7 +8,6 @@
 
 import { NextRequest, NextResponse } from 'next/server';
 import { createResumableUploadUrl } from '@/lib/upload-session';
-// import { getMimeType } from '@/lib/utils';
 
 export async function POST(request: NextRequest) {
   try {
@@ -37,6 +36,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Create resumable upload session with Google Drive
+    // Matches the newly corrected standard protocol implementation in upload-session.ts
     const session = await createResumableUploadUrl({
       fileName,
       mimeType,

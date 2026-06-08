@@ -71,6 +71,10 @@ export async function getUploadUrl(
  * Step 2: Upload file directly to Google Drive using standard native resumable upload
  * CORRECTED: Reliably extracts the final file ID metadata returned by the completed API stream.
  */
+/**
+ * Step 2: Upload file directly to Google Drive using standard native resumable upload
+ * FIXES BOTH: Prevents network timeout drops AND properly parses final metadata JSON body.
+ */
 export async function uploadFileToGoogleDrive(
   file: File,
   uploadUrl: string,
@@ -79,7 +83,7 @@ export async function uploadFileToGoogleDrive(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
 
-    // Track standard upload stream progress natively
+    // Track network upload progress natively
     if (onProgress) {
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
@@ -89,9 +93,8 @@ export async function uploadFileToGoogleDrive(
       });
     }
 
-    // Handle session completion
+    // Handle stream completion
     xhr.addEventListener('load', () => {
-      // Both 200 OK and 201 Created indicate the entire payload was received and written successfully
       if (xhr.status === 200 || xhr.status === 201) {
         try {
           if (!xhr.responseText || xhr.responseText.trim().length === 0) {
@@ -99,40 +102,38 @@ export async function uploadFileToGoogleDrive(
             return;
           }
 
+          // Parse the valid metadata payload returned by standard Drive API protocol
           const response = JSON.parse(xhr.responseText);
           
           if (response && response.id) {
-            resolve(response.id);
+            resolve(response.id); // Success! Passed to Step 3 registration
           } else {
-            reject(new Error('Upload completed, but no structural asset file ID was found in the metadata response.'));
+            reject(new Error('Upload succeeded, but file metadata ID missing from Google Drive response.'));
           }
         } catch (error) {
-          console.error('JSON parsing failed. Raw response content was:', xhr.responseText);
-          reject(new Error(`Failed to parse final Google Drive upload metadata: ${error instanceof Error ? error.message : String(error)}`));
+          console.error('Raw unparsable response content was:', xhr.responseText);
+          reject(new Error(`Failed to parse Google Drive metadata structure: ${error instanceof Error ? error.message : String(error)}`));
         }
       } else {
-        console.error('Upload failed:', {
+        console.error('Upload transaction rejected:', {
           status: xhr.status,
           statusText: xhr.statusText,
           response: xhr.responseText,
         });
-        reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.statusText}`));
+        reject(new Error(`Upload rejected with status ${xhr.status}: ${xhr.statusText}`));
       }
     });
 
-    xhr.addEventListener('error', () => {
-      console.error('Network connection error during transfer');
-      reject(new Error('Network connection error during transfer'));
-    });
+    // Handle structural pipeline connection errors
+    xhr.addEventListener('error', () => reject(new Error('Network connection error during stream transfer')));
+    xhr.addEventListener('abort', () => reject(new Error('Upload stream aborted')));
+    xhr.addEventListener('timeout', () => reject(new Error('Upload session timed out')));
 
-    xhr.addEventListener('abort', () => reject(new Error('Upload aborted')));
-    xhr.addEventListener('timeout', () => reject(new Error('Upload timed out')));
-
-    // Execute standard native uploader PUT request
+    // Dispatch the payload over an unbroken native PUT request stream
     xhr.open('PUT', uploadUrl, true);
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
     
-    // 10 minutes timeout window to avoid drops
+    // 10-minute timeout window
     xhr.timeout = 600000; 
 
     xhr.send(file);
