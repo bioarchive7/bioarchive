@@ -97,12 +97,19 @@ export async function uploadFileToGoogleDrive(
           reject(new Error('Failed to parse upload response'));
         }
       } else {
-        reject(new Error(`Upload failed with status ${xhr.status}`));
+        // Log response for debugging
+        console.error('Upload failed:', {
+          status: xhr.status,
+          statusText: xhr.statusText,
+          response: xhr.responseText,
+        });
+        reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.statusText}`));
       }
     });
 
     // Handle errors
     xhr.addEventListener('error', () => {
+      console.error('Network error during upload');
       reject(new Error('Network error during upload'));
     });
 
@@ -110,12 +117,20 @@ export async function uploadFileToGoogleDrive(
       reject(new Error('Upload was cancelled'));
     });
 
-    // Configure request
+    xhr.addEventListener('timeout', () => {
+      reject(new Error('Upload timed out'));
+    });
+
+    // Configure request - use PUT for resumable upload finalization
     xhr.open('PUT', uploadUrl, true);
-    xhr.setRequestHeader('Content-Type', file.type);
+    
+    // Set required headers for resumable upload
+    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
     xhr.setRequestHeader('X-Goog-Upload-Protocol', 'resumable');
     xhr.setRequestHeader('X-Goog-Upload-Command', 'upload, finalize');
     xhr.setRequestHeader('X-Goog-Upload-Content-Length', file.size.toString());
+    
+    xhr.timeout = 300000; // 5 minutes
 
     // Send file
     xhr.send(file);
