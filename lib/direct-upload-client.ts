@@ -66,76 +66,80 @@ export async function getUploadUrl(
  * BUG FIX: Removed X-Goog-Upload-* headers from final PUT request
  * These headers are only for the initial session creation, not for the final upload
  */
+/**
+ * Step 2: Upload file directly to Google Drive using chunked resumable upload
+ * Returns the file ID from Google Drive's response
+ */
 export async function uploadFileToGoogleDrive(
   file: File,
   uploadUrl: string,
   onProgress?: (percent: number) => void
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
+  // Must be a multiple of 262144 (256 KB). Let's use 1 MB chunks.
+  const CHUNK_SIZE = 1024 * 1024; 
+  const totalSize = file.size;
+  let startByte = 0;
 
-    // Track progress
-    if (onProgress) {
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable) {
-          const percentComplete = (event.loaded / event.total) * 100;
-          onProgress(Math.round(percentComplete));
+  while (startByte < totalSize) {
+    const endByte = Math.min(startByte + CHUNK_SIZE, totalSize);
+    const chunk = file.slice(startByte, endByte);
+    const chunkSize = endByte - startByte;
+
+    const responseText = await new Promise<string>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      xhr.open('PUT', uploadUrl, true);
+      
+      // Tell Google the specific byte sequence segment being uploaded
+      xhr.setRequestHeader('Content-Length', chunkSize.toString());
+      xhr.setRequestHeader('Content-Range', `bytes ${startByte}-${endByte - 1}/${totalSize}`);
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+
+      if (onProgress) {
+        xhr.upload.addEventListener('progress', (e) => {
+          if (e.lengthComputable) {
+            // Track continuous overall file upload percentage
+            const uploadedBytesSoFar = startByte + e.loaded;
+            const percentComplete = (uploadedBytesSoFar / totalSize) * 100;
+            onProgress(Math.min(Math.round(percentComplete), 99)); // Cap at 99% until server returns 200/201
+          }
+        });
+      }
+
+      xhr.addEventListener('load', () => {
+        // Google returns 308 Resume Incomplete for intermediate blocks
+        // and 200 OK / 201 Created for the final completion block.
+        if (xhr.status === 200 || xhr.status === 201 || xhr.status === 308) {
+          resolve(xhr.responseText);
+        } else {
+          reject(new Error(`Chunk upload failed with status ${xhr.status}: ${xhr.statusText}`));
         }
       });
-    }
 
-    // Handle completion
-    xhr.addEventListener('load', () => {
-      if (xhr.status === 200) {
-        try {
-          // Google Drive returns JSON with file metadata
-          const response = JSON.parse(xhr.responseText);
-          const fileId = response.id;
-          if (fileId) {
-            resolve(fileId);
-          } else {
-            reject(new Error('No file ID in response'));
-          }
-        } catch (error) {
-          reject(new Error('Failed to parse upload response'));
+      xhr.addEventListener('error', () => reject(new Error('Network error during chunk upload')));
+      xhr.addEventListener('abort', () => reject(new Error('Upload was cancelled')));
+      
+      xhr.send(chunk);
+    });
+
+    startByte = endByte;
+
+    // If we've reached the end, process the final metadata response payload
+    if (startByte >= totalSize) {
+      try {
+        const response = JSON.parse(responseText);
+        if (response.id) {
+          if (onProgress) onProgress(100);
+          return response.id;
         }
-      } else {
-        // Log response for debugging
-        console.error('Upload failed:', {
-          status: xhr.status,
-          statusText: xhr.statusText,
-          response: xhr.responseText,
-        });
-        reject(new Error(`Upload failed with status ${xhr.status}: ${xhr.statusText}`));
+        throw new Error('No file ID returned from Drive API');
+      } catch (error) {
+        throw new Error('Failed to parse final upload response payload');
       }
-    });
+    }
+  }
 
-    // Handle errors
-    xhr.addEventListener('error', () => {
-      console.error('Network error during upload');
-      reject(new Error('Network error during upload'));
-    });
-
-    xhr.addEventListener('abort', () => {
-      reject(new Error('Upload was cancelled'));
-    });
-
-    xhr.addEventListener('timeout', () => {
-      reject(new Error('Upload timed out'));
-    });
-
-    // Configure request - use PUT for resumable upload finalization
-    xhr.open('PUT', uploadUrl, true);
-    
-    // FIX: Only set Content-Type header for final upload
-    // Do NOT set X-Goog-Upload-* headers here - those are only for session initiation
-    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-    
-    xhr.timeout = 300000; // 5 minutes
-
-    // Send file
-    xhr.send(file);
-  });
+  throw new Error('Upload processing complete without returning valid file metadata');
 }
 
 /**
