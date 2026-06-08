@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Limit file size to 500MB (Google Drive limit is higher, but be reasonable)
+    // Limit file size to 500MB
     const MAX_FILE_SIZE = 500 * 1024 * 1024;
     if (fileSize > MAX_FILE_SIZE) {
       return NextResponse.json(
@@ -35,13 +35,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // CRITICAL CORS FIX: Dynamically detect the current request origin host (e.g., http://localhost:3000)
+    // and pass it down into the session builder so Google permits direct cross-origin browser PUT requests.
+    const originHeader = request.headers.get('origin') || new URL(request.url).origin;
+
     // Create resumable upload session with Google Drive
-    // Matches the newly corrected standard protocol implementation in upload-session.ts
     const session = await createResumableUploadUrl({
       fileName,
       mimeType,
       fileSize,
       folderId,
+      origin: originHeader, // <-- Strategic parameter pass-through
     });
 
     return NextResponse.json(

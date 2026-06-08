@@ -8,11 +8,7 @@ import { appendFileRecord, getAllFiles } from '@/lib/sheets';
 import { generateFileName } from '@/lib/utils';
 import { notifyModsOfUpload } from '@/lib/notify';
 import { google } from 'googleapis';
-import config from '@/config';
 
-/**
- * Get file parent information from Google Drive to enable backup migration routing
- */
 async function getFileMetadata(fileId: string) {
   try {
     const clientId = process.env.GOOGLE_CLIENT_ID;
@@ -40,16 +36,10 @@ async function getFileMetadata(fileId: string) {
   }
 }
 
-/**
- * Migrate target duplicate assets into the designated duplicate/backup folder dynamically
- */
 async function moveFileToDuplicateFolder(fileId: string, currentParentId: string) {
   try {
     const duplicateFolderId = process.env.NEXT_PUBLIC_DUPLICATE_FOLDER_ID;
-    if (!duplicateFolderId) {
-      console.warn('NEXT_PUBLIC_DUPLICATE_FOLDER_ID not configured, bypassing asset migration');
-      return;
-    }
+    if (!duplicateFolderId) return;
 
     const clientId = process.env.GOOGLE_CLIENT_ID;
     const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
@@ -65,9 +55,8 @@ async function moveFileToDuplicateFolder(fileId: string, currentParentId: string
       removeParents: currentParentId,
       fields: 'id, parents',
     });
-    console.log(`[Duplicate Relocation] Moved conflicting file ${fileId} to backup directory.`);
   } catch (error) {
-    console.error('[Duplicate Relocation] Failed moving target file asset:', error);
+    console.error('[Duplicate Relocation Error]:', error);
   }
 }
 
@@ -91,36 +80,27 @@ export async function POST(request: NextRequest) {
       remarks,
     } = body;
 
-    // Validate required fields
     if (!fileId || !semester || !courseCode || !fileType || !professor) {
-      return NextResponse.json(
-        { status: 'error', message: 'Missing required metadata fields' },
-        { status: 400 }
-      );
+      return NextResponse.json({ status: 'error', message: 'Missing required fields' }, { status: 400 });
     }
 
     const driveFile = await getFileMetadata(fileId);
     if (!driveFile) {
-      return NextResponse.json(
-        { status: 'error', message: 'File not found on Google Drive' },
-        { status: 404 }
-      );
+      return NextResponse.json({ status: 'error', message: 'File not found on Drive' }, { status: 404 });
     }
 
-    // Only look up duplicates for specific academic material categories
-    const checkDuplicates = fileType === 'qpaper' || fileType === 'slides';
+    // Duplicate logic: Strict parameter tracking exclusively on qpaper and slides
+    const shouldCheckDuplicates = fileType === 'qpaper' || fileType === 'slides';
     let isDuplicate = false;
 
-    if (checkDuplicates) {
+    if (shouldCheckDuplicates) {
       const sheetData = await getAllFiles();
       isDuplicate = sheetData.some((row) => {
         const matchSemester = String(row.semester) === String(semester);
         const matchYear     = String(row.year).toLowerCase() === String(year).toLowerCase();
         const matchCourse   = String(row.courseCode).toLowerCase() === String(courseCode).toLowerCase();
         const matchProf     = String(row.professor).toLowerCase() === String(professor).toLowerCase();
-        
-        // Match exam type specifically for question papers
-        const matchExam = fileType === 'qpaper' 
+        const matchExam     = fileType === 'qpaper' 
           ? String(row.examType).toLowerCase() === String(examType).toLowerCase()
           : true;
 
@@ -134,19 +114,11 @@ export async function POST(request: NextRequest) {
         await moveFileToDuplicateFolder(fileId, originalParent);
       }
 
-      return NextResponse.json(
-        {
-          status: 'duplicate',
-          message: 'This syllabus item has already been submitted. Sent copy to backups!',
-          data: {
-            fileId,
-            fileName: driveFile.name,
-            webViewLink: driveFile.webViewLink,
-            webContentLink: driveFile.webContentLink,
-          }
-        },
-        { status: 200 }
-      );
+      return NextResponse.json({
+        status: 'duplicate',
+        message: 'This academic material is already registered. Sent copy to backups!',
+        data: { fileId, fileName: driveFile.name }
+      }, { status: 200 });
     }
 
     const finalFileName = fileName || generateFileName({
@@ -160,11 +132,11 @@ export async function POST(request: NextRequest) {
     const uploadDate = new Date().toISOString().split('T')[0];
     const md5Hash = driveFile.md5Checksum || `${fileId}:${driveFile.name}`;
 
-    // Appends cleanly to match all columns A-R in your database schema index sequentially
+    // Append beautifully structured inputs directly matching columns A-R
     await appendFileRecord({
       fileId,
-      semester,
-      year: year || '',
+      semester: String(semester),
+      year: String(year),
       courseCode,
       courseName: courseName || '',
       professor: professor || '',
@@ -186,33 +158,25 @@ export async function POST(request: NextRequest) {
       fileName: finalFileName,
       courseCode,
       courseName,
-      semester,
+      semester: String(semester),
       professor,
       fileType,
       examType,
       uploaderName: uploaderName || 'Anonymous',
       webViewLink: driveFile.webViewLink || '',
-    }).catch((err) => console.error('Notification failed:', err));
+    }).catch((err) => console.error('Notification bypassed:', err));
 
-    return NextResponse.json(
-      {
-        status: 'success',
-        message: 'File registered successfully',
-        data: {
-          fileId,
-          fileName: finalFileName,
-          webViewLink: driveFile.webViewLink,
-          webContentLink: driveFile.webContentLink,
-        },
-      },
-      { status: 200 }
-    );
+    return NextResponse.json({
+      status: 'success',
+      message: 'File cataloged successfully',
+      data: { fileId, fileName: finalFileName }
+    }, { status: 200 });
+
   } catch (error) {
-    const errorMsg = error instanceof Error ? error.message : String(error);
-    console.error('Register upload error:', error);
-    return NextResponse.json(
-      { status: 'error', message: `Failed to register upload: ${errorMsg}` },
-      { status: 500 }
-    );
+    console.error('Registration runtime error:', error);
+    return NextResponse.json({ 
+      status: 'error', 
+      message: `Failed to register entry: ${error instanceof Error ? error.message : String(error)}` 
+    }, { status: 500 });
   }
 }
