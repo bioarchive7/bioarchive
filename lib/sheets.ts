@@ -15,6 +15,7 @@ type GoogleSheetsClient = sheets_v4.Sheets;
 export interface SheetRow {
   fileId: string;
   semester: string;
+  year: string;
   courseCode: string;
   courseName: string;
   professor: string;
@@ -36,6 +37,7 @@ export interface SheetRow {
 const SHEET_HEADERS = [
   'fileId',
   'semester',
+  'year',
   'courseCode',
   'courseName',
   'professor',
@@ -81,6 +83,7 @@ function rowToSheetRow(values: any[]): SheetRow {
   return {
     fileId: values[0] || '',
     semester: values[1] || '',
+    year: values[2] || '',
     courseCode: values[2] || '',
     courseName: values[3] || '',
     professor: values[4] || '',
@@ -106,6 +109,7 @@ function sheetRowToArray(row: SheetRow): any[] {
   return [
     row.fileId,
     row.semester,
+    row.year,
     row.courseCode,
     row.courseName,
     row.professor,
@@ -137,7 +141,7 @@ export async function initializeSheetHeaders(): Promise<void> {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: config.SHEET_ID,
-      range: 'Sheet1!A1:Q1',            // Updated range for new columns
+      range: 'Sheet1!A1:R1',            // Updated range for new columns
     });
 
     const headerRow = response.data.values?.[0];
@@ -145,7 +149,7 @@ export async function initializeSheetHeaders(): Promise<void> {
     if (!headerRow || headerRow.length === 0) {
       await sheets.spreadsheets.values.update({
         spreadsheetId: config.SHEET_ID,
-        range: 'Sheet1!A1:Q1',           // Updated range for new columns
+        range: 'Sheet1!A1:R1',           // Updated range for new columns
         valueInputOption: 'RAW',
         requestBody: {
           values: [SHEET_HEADERS],
@@ -171,7 +175,7 @@ export async function getAllFiles(): Promise<SheetRow[]> {
   try {
     const response = await sheets.spreadsheets.values.get({
       spreadsheetId: config.SHEET_ID,
-      range: 'Sheet1!A2:Q',             // Updated range for new columns
+      range: 'Sheet1!A2:R',             // Updated range for new columns
     });
 
     const rows = response.data.values || [];
@@ -195,7 +199,7 @@ export async function appendFileRecord(row: SheetRow): Promise<void> {
   try {
     await sheets.spreadsheets.values.append({
       spreadsheetId: config.SHEET_ID,
-      range: 'Sheet1!A:Q',              // Updated range for new columns
+      range: 'Sheet1!A:R',              // Updated range for new columns
       valueInputOption: 'RAW',
       requestBody: {
         values: [sheetRowToArray(row)],
@@ -296,8 +300,8 @@ export async function updateRemarks(fileId: string, remarks: string): Promise<vo
       throw new Error(`File with ID "${fileId}" not found in registry`);
     }
 
-    // remarks is column Q
-    const remarksCell = `Q${targetRowIndex}`;
+    // remarks is column R
+    const remarksCell = `R${targetRowIndex}`;
 
     await sheets.spreadsheets.values.update({
       spreadsheetId: config.SHEET_ID,
