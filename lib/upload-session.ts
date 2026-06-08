@@ -2,7 +2,7 @@
  * Create a resumable upload session with Google Drive
  * Returns an upload URL that the browser can use to upload directly to Drive
  * 
- * FIXED: Added comprehensive error logging and validation
+ * FIXED: Added X-Goog-Upload-Command: start header (required by Google Drive API)
  */
 
 import config from '@/config';
@@ -16,14 +16,12 @@ export interface UploadSessionParams {
 
 /**
  * Get fresh OAuth access token using refresh token
- * Isolated for better error handling and debugging
  */
 async function getAccessToken(): Promise<string> {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
 
-  // Validate credentials exist
   if (!clientId) {
     throw new Error('GOOGLE_CLIENT_ID is missing in Vercel environment variables');
   }
@@ -55,7 +53,6 @@ async function getAccessToken(): Promise<string> {
 
     const tokenData = await tokenResponse.json();
     
-    // Validate token response structure
     if (!tokenData || typeof tokenData !== 'object') {
       throw new Error('Google OAuth response is not valid JSON');
     }
@@ -76,7 +73,7 @@ async function getAccessToken(): Promise<string> {
 
 /**
  * Create resumable upload session with Google Drive
- * FIXED: Better error handling, validation, and logging
+ * FIXED: Added X-Goog-Upload-Command: start header
  */
 export async function createResumableUploadUrl(
   params: UploadSessionParams
@@ -105,7 +102,7 @@ export async function createResumableUploadUrl(
       fileName: params.fileName,
       fileSize: params.fileSize,
       mimeType: params.mimeType,
-      folderId: targetFolderId.substring(0, 10) + '...', // Log partial ID for privacy
+      folderId: targetFolderId.substring(0, 10) + '...',
     });
 
     // Step 1: Get access token
@@ -123,6 +120,7 @@ export async function createResumableUploadUrl(
     console.log('[Upload Session] Initiating resumable upload with Google Drive API...');
 
     // Step 3: Initiate resumable upload session
+    // FIX: Added X-Goog-Upload-Command: start header (REQUIRED by Google Drive API)
     const initiateResponse = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
       {
@@ -131,6 +129,7 @@ export async function createResumableUploadUrl(
           'Authorization': `Bearer ${access_token}`,
           'Content-Type': 'application/json',
           'X-Goog-Upload-Protocol': 'resumable',
+          'X-Goog-Upload-Command': 'start',                    // ← ADDED THIS LINE
           'X-Goog-Upload-Header-Content-Length': params.fileSize.toString(),
           'X-Goog-Upload-Header-Content-Type': params.mimeType,
         },
@@ -138,7 +137,6 @@ export async function createResumableUploadUrl(
       }
     );
 
-    // Log response details for debugging
     console.log('[Upload Session] Google Drive response status:', initiateResponse.status);
 
     if (!initiateResponse.ok) {
