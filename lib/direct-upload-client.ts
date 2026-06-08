@@ -1,8 +1,8 @@
 /**
  * Direct Google Drive upload utilities for browser
  * STRATEGIC FIX: 
- * - Proper resumable upload protocol
- * - Robust error handling
+ * - Proper native resumable upload protocol handling
+ * - Robust JSON body parsing for standard Drive API responses
  * - Network timeout protection
  */
 
@@ -64,10 +64,7 @@ export async function getUploadUrl(
 
 /**
  * Step 2: Upload file directly to Google Drive
- * STRATEGIC FIX: Proper resumable upload protocol with:
- * - Correct headers
- * - Network timeout handling
- * - Proper response parsing
+ * STRATEGIC FIX: Standard native resumable upload execution. Handles both 200/201 and cleanly parses the response JSON block.
  */
 export async function uploadFileToGoogleDrive(
   file: File,
@@ -95,41 +92,47 @@ export async function uploadFileToGoogleDrive(
       
       console.log('[Upload] Complete. Status:', xhr.status);
 
-      // Google Drive returns 200 on success
-      if (xhr.status === 200) {
+      // Both 200 OK and 201 Created indicate full completion inside standard protocol
+      if (xhr.status === 200 || xhr.status === 201) {
         try {
+          if (!xhr.responseText || xhr.responseText.trim().length === 0) {
+            reject(new Error('Google Drive finalized the upload but returned an empty response body.'));
+            return;
+          }
+
           const response = JSON.parse(xhr.responseText);
           if (response && response.id) {
             console.log('[Upload] File ID received:', response.id);
             resolve(response.id);
           } else {
-            reject(new Error('Response missing file ID'));
+            reject(new Error('Upload succeeded, but file metadata ID missing from Google Drive response.'));
           }
         } catch (e) {
-          reject(new Error(`Failed to parse response: ${e}`));
+          console.error('Raw unparsable response content was:', xhr.responseText);
+          reject(new Error(`Failed to parse Google Drive metadata structure: ${e}`));
         }
       } else {
-        reject(new Error(`Upload returned status ${xhr.status}`));
+        reject(new Error(`Upload returned status ${xhr.status}: ${xhr.statusText}`));
       }
     });
 
     // Handle errors
     xhr.addEventListener('error', () => {
       clearTimeout(uploadTimeout);
-      console.error('[Upload] Network error');
-      reject(new Error('Network error during upload'));
+      console.error('[Upload] Network error during stream transfer');
+      reject(new Error('Network connection error during transfer'));
     });
 
     xhr.addEventListener('abort', () => {
       clearTimeout(uploadTimeout);
       console.error('[Upload] Aborted');
-      reject(new Error('Upload was cancelled'));
+      reject(new Error('Upload stream aborted'));
     });
 
     xhr.addEventListener('timeout', () => {
       clearTimeout(uploadTimeout);
       console.error('[Upload] XHR timeout');
-      reject(new Error('Upload timed out'));
+      reject(new Error('Upload session timed out'));
     });
 
     // Configure request
@@ -138,19 +141,19 @@ export async function uploadFileToGoogleDrive(
     
     xhr.open('PUT', uploadUrl, true);
     
-    // STRATEGIC FIX: Correct headers for resumable upload final step
+    // Set proper headers for standard native PUT request uploader mechanics
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
     
     // Set timeouts
     xhr.timeout = 600000; // 10 minutes XHR timeout
     
-    // Additional safety timeout
+    // Additional safety manual drop protection
     uploadTimeout = setTimeout(() => {
       console.error('[Upload] Manual timeout triggered after 15 minutes');
       xhr.abort();
-    }, 900000); // 15 minutes manual timeout
+    }, 900000); 
 
-    // Send file
+    // Send file payload over the unbroken native pipeline
     xhr.send(file);
   });
 }
