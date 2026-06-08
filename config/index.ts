@@ -37,7 +37,7 @@ const config: Config = {
   SITE_TAGLINE: '',
   NISER_SEMESTERS: [1, 2, 3, 4, 5, 6, 7, 8],
   MAX_UPLOAD_SIZE_MB: 100,
-  ALLOWED_FILE_TYPES: ['pdf', 'pptx', 'docx', 'xlsx', 'zip', 'jpg', 'jpeg', 'png'],
+  ALLOWED_FILE_TYPES: ['pdf', 'pptx', 'ppt', 'docx', 'xlsx', 'zip', 'jpg', 'jpeg', 'png'],
 };
 
 export default config;

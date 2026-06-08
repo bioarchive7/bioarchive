@@ -5,8 +5,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Upload, CheckCircle, AlertCircle, ChevronRight, ChevronLeft } from 'lucide-react';
 import { CURRICULUM } from '@/data/curriculum';
 import config from '@/config';
-import { uploadFile, UploadResponse } from '@/lib/api-client';
 import { FileType, formatFileSize } from '@/lib/utils';
+import { uploadFileDirectToDrive } from '@/lib/direct-upload-client';
 
 interface UploadModalProps {
   isOpen?: boolean;
@@ -170,46 +170,69 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
     setUploadProgress(0);
     setUploadMessage('');
 
-    const fd = new FormData();
-    
-    // Add all files
-    uploadedFiles.forEach((file) => {
-      fd.append('files', file);
-    });
-    
-    fd.append('semester', semester);
-    fd.append('courseCode', courseCode);
-    fd.append('courseName', courseName);
-    fd.append('professor', professor === 'Other' ? otherProfessor : professor);
-    
-    // Add secondary professors if provided
-    if (professor2) {
-      fd.append('professor2', professor2 === 'Other' ? otherProfessor : professor2);
-    }
-    if (professor3) {
-      fd.append('professor3', professor3 === 'Other' ? otherProfessor : professor3);
-    }
-    
-    fd.append('examType', fileType === 'qpaper' ? (examType === 'other' ? otherExamType : examType) : 'na');
-    fd.append('fileType', fileType === 'other' ? otherFileType : fileType);
-    if (year) fd.append('year', year);
-    fd.append('uploaderName', uploaderName || 'Anonymous');
-    fd.append('consent', consent ? 'true' : 'false');
-    if (remarks) fd.append('remarks', remarks);
-    fd.append('isMultiFile', isMultiFileType ? 'true' : 'false');
+    try {
+      // Upload each file using the new direct-to-Drive method
+      let successCount = 0;
+      let errorOccurred = false;
 
-    const res: UploadResponse = await uploadFile(fd, (pct) => setUploadProgress(pct));
-    if (res.status === 'success') {
-      setUploadStatus('success');
-      setUploadMessage(res.message);
-      setTimeout(() => { resetForm(); onClose?.(); }, 2500);
-    } else if (res.status === 'duplicate') {
-      setUploadStatus('duplicate');
-      setUploadMessage(res.message);
-      setTimeout(() => { resetForm(); onClose?.(); }, 2500);
-    } else {
+      for (let i = 0; i < uploadedFiles.length; i++) {
+        const file = uploadedFiles[i];
+        
+        // Update progress for each file
+        const fileProgress = (i / uploadedFiles.length) * 100;
+        setUploadProgress(Math.round(fileProgress));
+
+        const result = await uploadFileDirectToDrive(
+          file,
+          {
+            fileName: file.name,
+            semester,
+            courseCode,
+            courseName,
+            professor: professor === 'Other' ? otherProfessor : professor,
+            professor2: professor2 ? (professor2 === 'Other' ? otherProfessor : professor2) : undefined,
+            professor3: professor3 ? (professor3 === 'Other' ? otherProfessor : professor3) : undefined,
+            examType: fileType === 'qpaper' ? (examType === 'other' ? otherExamType : examType) : 'na',
+            fileType: fileType === 'other' ? otherFileType : fileType,
+            year,
+            uploaderName: uploaderName || 'Anonymous',
+            remarks: remarks || undefined,
+          },
+          (progress) => {
+            // Adjust progress to account for multiple files
+            const totalProgress = fileProgress + (progress / uploadedFiles.length);
+            setUploadProgress(Math.round(totalProgress));
+          }
+        );
+
+        if (result.status === 'success') {
+          successCount++;
+        } else if (result.status === 'duplicate') {
+          setUploadStatus('duplicate');
+          setUploadMessage(result.message);
+          errorOccurred = true;
+          break;
+        } else {
+          setUploadStatus('error');
+          setUploadMessage(result.message);
+          errorOccurred = true;
+          break;
+        }
+      }
+
+      if (!errorOccurred) {
+        setUploadProgress(100);
+        setUploadStatus('success');
+        setUploadMessage(
+          `${successCount} file${successCount !== 1 ? 's' : ''} uploaded successfully!`
+        );
+        setTimeout(() => { resetForm(); onClose?.(); }, 2500);
+      }
+    } catch (error) {
       setUploadStatus('error');
-      setUploadMessage(res.message);
+      setUploadMessage(
+        `Upload failed: ${error instanceof Error ? error.message : String(error)}`
+      );
     }
   };
 
@@ -448,11 +471,6 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
                                   <input type="text" value={otherExamType} onChange={(e) => setOtherExamType(e.target.value)} placeholder="e.g., Pre-Sem Exam" style={inputStyle} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')} />
                                 </motion.div>
                               )}
-
-                              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} style={{ marginTop: '12px' }}>
-                                <label style={labelStyle}>Year <span style={{ color: '#fca5a5' }}>*</span></label>
-                                <input type="number" value={year} onChange={(e) => setYear(e.target.value)} placeholder="e.g. 2023" min="2000" max={new Date().getFullYear()} style={inputStyle} onFocus={(e) => (e.currentTarget.style.borderColor = 'rgba(116,198,157,0.4)')} onBlur={(e) => (e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)')} />
-                              </motion.div>
                             </AnimatePresence>
                           )}
 

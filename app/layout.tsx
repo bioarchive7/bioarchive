@@ -92,7 +92,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </p>
               <p style={{ fontSize: '11px', color: 'var(--text-3)' }}>
                 <a
-                  href="mailto:bioarchive007@gmail.com"
+                  href="mailto:bioarchive7@gmail.com"
                   style={{ fontSize: '12px', color: 'var(--green-bright)', textDecoration: 'underline' }}
                 >
                   Contact: bioarchive007@gmail.com
