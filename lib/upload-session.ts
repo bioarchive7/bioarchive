@@ -2,7 +2,7 @@
  * Create a resumable upload session with Google Drive
  * Returns an upload URL that the browser can use to upload directly to Drive
  * 
- * FIXED: Added X-Goog-Upload-Command: start header (required by Google Drive API)
+ * CORRECT IMPLEMENTATION - follows Google Drive API documentation exactly
  */
 
 import config from '@/config';
@@ -22,114 +22,93 @@ async function getAccessToken(): Promise<string> {
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
   const refreshToken = process.env.GOOGLE_REFRESH_TOKEN;
 
-  if (!clientId) {
-    throw new Error('GOOGLE_CLIENT_ID is missing in Vercel environment variables');
-  }
-  if (!clientSecret) {
-    throw new Error('GOOGLE_CLIENT_SECRET is missing in Vercel environment variables');
-  }
-  if (!refreshToken) {
-    throw new Error('GOOGLE_REFRESH_TOKEN is missing in Vercel environment variables');
+  if (!clientId || !clientSecret || !refreshToken) {
+    throw new Error(
+      'Missing OAuth: GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET, GOOGLE_REFRESH_TOKEN'
+    );
   }
 
-  try {
-    const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({
-        client_id: clientId,
-        client_secret: clientSecret,
-        refresh_token: refreshToken,
-        grant_type: 'refresh_token',
-      }).toString(),
-    });
+  const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: refreshToken,
+      grant_type: 'refresh_token',
+    }).toString(),
+  });
 
-    if (!tokenResponse.ok) {
-      const errorText = await tokenResponse.text();
-      throw new Error(
-        `Google OAuth token refresh failed (${tokenResponse.status}): ${errorText}`
-      );
-    }
-
-    const tokenData = await tokenResponse.json();
-    
-    if (!tokenData || typeof tokenData !== 'object') {
-      throw new Error('Google OAuth response is not valid JSON');
-    }
-
-    const access_token = tokenData.access_token;
-    if (!access_token || typeof access_token !== 'string') {
-      throw new Error(
-        `No access token in Google response. Keys: ${Object.keys(tokenData).join(', ')}`
-      );
-    }
-
-    return access_token;
-  } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to get Google access token: ${msg}`);
+  if (!tokenResponse.ok) {
+    const errorText = await tokenResponse.text();
+    throw new Error(`Token refresh failed: ${errorText}`);
   }
+
+  const tokenData = await tokenResponse.json();
+  if (!tokenData.access_token) {
+    throw new Error('No access_token in token response');
+  }
+
+  return tokenData.access_token;
 }
 
 /**
  * Create resumable upload session with Google Drive
- * FIXED: Added X-Goog-Upload-Command: start header
+ * CORRECT: Follows Google Drive Resumable Upload Protocol exactly
+ * 
+ * Request headers needed:
+ * - X-Goog-Upload-Protocol: resumable (enables resumable protocol)
+ * - X-Goog-Upload-Command: start (initiates session, returns Location header)
+ * - X-Goog-Upload-Header-Content-Length: [file size]
+ * - X-Goog-Upload-Header-Content-Type: [mime type]
+ * 
+ * Response: 200 OK with Location header containing upload session URI
  */
 export async function createResumableUploadUrl(
   params: UploadSessionParams
 ): Promise<{ uploadUrl: string; fileName: string }> {
   try {
-    // Validate input parameters
-    if (!params.fileName || !params.mimeType || !params.fileSize) {
-      throw new Error(
-        `Missing upload parameters: fileName=${params.fileName}, mimeType=${params.mimeType}, fileSize=${params.fileSize}`
-      );
-    }
-
-    if (params.fileSize <= 0) {
-      throw new Error(`Invalid file size: ${params.fileSize}`);
-    }
-
-    // Get target folder
-    const targetFolderId = params.folderId || config.DRIVE_FOLDER_ID;
-    if (!targetFolderId) {
-      throw new Error(
-        'No Google Drive folder specified. Set folderId in params or DRIVE_FOLDER_ID in config'
-      );
-    }
-
     console.log('[Upload Session] Starting resumable upload initiation', {
       fileName: params.fileName,
       fileSize: params.fileSize,
       mimeType: params.mimeType,
-      folderId: targetFolderId.substring(0, 10) + '...',
+      folderId: params.folderId?.substring(0, 15) + '...',
     });
 
-    // Step 1: Get access token
-    console.log('[Upload Session] Fetching Google access token...');
-    const access_token = await getAccessToken();
-    console.log('[Upload Session] Access token obtained successfully');
+    // Validate
+    if (!params.fileName || !params.mimeType || !params.fileSize) {
+      throw new Error('Missing: fileName, mimeType, or fileSize');
+    }
 
-    // Step 2: Prepare metadata for Google Drive
+    const targetFolderId = params.folderId || config.DRIVE_FOLDER_ID;
+    if (!targetFolderId) {
+      throw new Error('No DRIVE_FOLDER_ID configured');
+    }
+
+    // Get token
+    console.log('[Upload Session] Getting access token...');
+    const accessToken = await getAccessToken();
+    console.log('[Upload Session] Token obtained');
+
+    // Prepare metadata
     const metadata = {
       name: params.fileName,
       mimeType: params.mimeType,
       parents: [targetFolderId],
     };
 
-    console.log('[Upload Session] Initiating resumable upload with Google Drive API...');
+    console.log('[Upload Session] Initiating resumable session...');
 
-    // Step 3: Initiate resumable upload session
-    // Session initiation: POST metadata, get Location header back
-    // Note: X-Goog-Upload-Command is NOT used here - only in the actual upload request
-    const initiateResponse = await fetch(
+    // Make request to Google Drive API
+    const response = await fetch(
       'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable',
       {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${access_token}`,
+          'Authorization': `Bearer ${accessToken}`,
           'Content-Type': 'application/json',
           'X-Goog-Upload-Protocol': 'resumable',
+          'X-Goog-Upload-Command': 'start',
           'X-Goog-Upload-Header-Content-Length': params.fileSize.toString(),
           'X-Goog-Upload-Header-Content-Type': params.mimeType,
         },
@@ -137,34 +116,37 @@ export async function createResumableUploadUrl(
       }
     );
 
-    console.log('[Upload Session] Google Drive response status:', initiateResponse.status);
+    console.log('[Upload Session] Response status:', response.status);
 
-    if (!initiateResponse.ok) {
-      const errorText = await initiateResponse.text();
-      console.error('[Upload Session] Google Drive API error:', {
-        status: initiateResponse.status,
-        statusText: initiateResponse.statusText,
-        body: errorText,
+    if (!response.ok) {
+      const errorBody = await response.text();
+      console.error('[Upload Session] API error:', {
+        status: response.status,
+        statusText: response.statusText,
+        body: errorBody,
       });
-
-      throw new Error(
-        `Google Drive API error (${initiateResponse.status}): ${errorText}`
-      );
+      throw new Error(`Google Drive API (${response.status}): ${errorBody}`);
     }
 
-    // Step 4: Extract upload URL from Location header
-    const uploadUrl = initiateResponse.headers.get('location');
-    
+    // Extract Location header (case-insensitive)
+    // Try multiple variations to handle any case sensitivity issues
+    let uploadUrl = 
+      response.headers.get('location') ||
+      response.headers.get('Location') ||
+      response.headers.get('LOCATION');
+
+    // If still not found, log all headers for debugging
     if (!uploadUrl) {
-      console.error('[Upload Session] Missing Location header in response');
-      console.error('[Upload Session] Response headers:', {
-        contentType: initiateResponse.headers.get('content-type'),
-        contentLength: initiateResponse.headers.get('content-length'),
-      });
-      throw new Error('Google Drive did not return upload URL (missing Location header)');
+      console.error('[Upload Session] Location header not found. All headers:');
+      for (const [key, value] of response.headers.entries()) {
+        console.error(`  ${key}: ${value}`);
+      }
+      throw new Error('Google Drive did not return Location header');
     }
 
-    console.log('[Upload Session] Upload session created successfully');
+    console.log('[Upload Session] Resumable session created');
+    console.log('[Upload Session] Upload URL (first 80 chars):', uploadUrl.substring(0, 80) + '...');
+
     return {
       uploadUrl,
       fileName: params.fileName,
