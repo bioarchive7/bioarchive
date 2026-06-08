@@ -21,13 +21,13 @@ export async function POST(request: NextRequest) {
     // Extract fields
     const semester = formData.get('semester') as string;
     const courseCode = formData.get('courseCode') as string;
+    const year= formData.get('year') as string;
     const courseName = formData.get('courseName') as string;
     const professor = formData.get('professor') as string;
     const professor2 = formData.get('professor2') as string | null;
     const professor3 = formData.get('professor3') as string | null;
     const examType = formData.get('examType') as string;
     const fileType = formData.get('fileType') as string;
-    const year = formData.get('year') as string;
     const uploaderName = formData.get('uploaderName') as string;
     const remarks = formData.get('remarks') as string | null;
     const isMultiFile = (formData.get('isMultiFile') as string) === 'true';
@@ -136,6 +136,7 @@ export async function POST(request: NextRequest) {
     await appendFileRecord({
       fileId: uploadResult.fileId,
       semester,
+      year,
       courseCode,
       courseName,
       professor: professorList,
