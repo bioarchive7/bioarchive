@@ -130,18 +130,20 @@ export async function createResumableUploadUrl(
 
     // Extract Location header (case-insensitive)
     // Try multiple variations to handle any case sensitivity issues
+    // Extract Location header or the Google-specific upload URL header
     let uploadUrl = 
-      response.headers.get('location') ||
-      response.headers.get('Location') ||
-      response.headers.get('LOCATION');
+    response.headers.get('location') ||
+    response.headers.get('Location') ||
+    response.headers.get('LOCATION') ||
+    response.headers.get('x-goog-upload-url'); // <-- Add this fallback
 
     // If still not found, log all headers for debugging
     if (!uploadUrl) {
-      console.error('[Upload Session] Location header not found. All headers:');
-      for (const [key, value] of response.headers.entries()) {
+    console.error('[Upload Session] Location header not found. All headers:');
+    for (const [key, value] of response.headers.entries()) {
         console.error(`  ${key}: ${value}`);
-      }
-      throw new Error('Google Drive did not return Location header');
+    }
+    throw new Error('Google Drive did not return Location header');
     }
 
     console.log('[Upload Session] Resumable session created');
