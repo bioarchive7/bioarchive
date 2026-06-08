@@ -62,83 +62,69 @@ export async function getUploadUrl(
   return data.uploadUrl;
 }
 
-/**
- * Step 2: Stream file natively from the browser directly to Google Drive
- * PRECISE FIX: Bypasses Vercel's 4.5MB limit completely while avoiding CORS blocks.
- */
+
 export async function uploadFileToGoogleDrive(
   file: File,
   uploadUrl: string,
   onProgress?: (percent: number) => void
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    let uploadTimeout: NodeJS.Timeout;
+  // Google Drive requires chunks to be multiples of 256 KB. We will use exactly 2 MB.
+  const CHUNK_SIZE = 2 * 1024 * 1024; 
+  const totalBytes = file.size;
+  let offset = 0;
 
-    // Track native upload connection streams directly
-    if (onProgress) {
-      xhr.upload.addEventListener('progress', (event) => {
-        if (event.lengthComputable) {
-          const percent = Math.round((event.loaded / event.total) * 100);
-          console.log(`[Direct Drive Upload] Progress: ${percent}%`);
-          onProgress(percent);
+  while (offset < totalBytes) {
+    const end = Math.min(offset + CHUNK_SIZE, totalBytes);
+    const chunk = file.slice(offset, end);
+    const chunkLength = end - offset;
+
+    const resultId = await new Promise<string | null>((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      
+      xhr.onreadystatechange = () => {
+        if (xhr.readyState === XMLHttpRequest.DONE) {
+          // 308 means chunk received successfully, more chunks expected.
+          // 200/201 means final chunk received successfully, upload complete.
+          if (xhr.status === 308 || xhr.status === 200 || xhr.status === 201) {
+            if (end === totalBytes) {
+              // Final chunk complete, extract file ID from response body
+              try {
+                const response = JSON.parse(xhr.responseText);
+                resolve(response.id || null);
+              } catch {
+                reject(new Error('Failed parsing final completion payload metadata.'));
+              }
+            } else {
+              resolve(null); // Intermediate chunk successful
+            }
+          } else {
+            reject(new Error(`Chunk upload failed with status code ${xhr.status}`));
+          }
         }
-      });
+      };
+
+      xhr.open('PUT', '/api/upload-chunk', true);
+      
+      // Set headers for the local server proxy route
+      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      xhr.setRequestHeader('x-upload-url', uploadUrl);
+      xhr.setRequestHeader('Content-Range', `bytes ${offset}-${end - 1}/${totalBytes}`);
+
+      xhr.send(chunk);
+    });
+
+    if (end === totalBytes && resultId) {
+      if (onProgress) onProgress(100);
+      return resultId; // Entire flow complete!
     }
 
-    xhr.onreadystatechange = () => {
-      if (xhr.readyState === XMLHttpRequest.DONE) {
-        clearTimeout(uploadTimeout);
-        console.log('[Direct Drive Upload] Connection Complete. Google Status:', xhr.status);
+    offset = end;
+    if (onProgress) {
+      onProgress(Math.round((offset / totalBytes) * 100));
+    }
+  }
 
-        // Standard Drive protocol returns 200 or 201 when completion is verified
-        if (xhr.status === 200 || xhr.status === 201) {
-          try {
-            if (!xhr.responseText || xhr.responseText.trim().length === 0) {
-              reject(new Error('Google Drive finalized upload stream but returned an empty structural payload body.'));
-              return;
-            }
-
-            const response = JSON.parse(xhr.responseText);
-            if (response && response.id) {
-              resolve(response.id); // Success! Sent directly to Step 3 registration
-            } else {
-              reject(new Error('File received by Google, but tracking identifier ID is missing from response.'));
-            }
-          } catch (e) {
-            reject(new Error(`Failed to parse finalized Google structural layout text: ${e}`));
-          }
-        } else {
-          reject(new Error(`Google Drive rejected transmission stream with status ${xhr.status}: ${xhr.statusText}`));
-        }
-      }
-    };
-
-    xhr.addEventListener('error', () => {
-      clearTimeout(uploadTimeout);
-      reject(new Error('Network channel dropped connection mid-transfer. Check client network states.'));
-    });
-
-    xhr.addEventListener('abort', () => {
-      clearTimeout(uploadTimeout);
-      reject(new Error('Upload canceled by client configuration.'));
-    });
-
-    xhr.open('PUT', uploadUrl, true);
-    
-    // CRITICAL: We pass ONLY the content-type header. 
-    // Omitting custom headers prevents the browser from making an interactive preflight OPTIONS request,
-    // allowing the raw binary stream to pass through smoothly without CORS restrictions.
-    xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-    
-    xhr.timeout = 900000; // Generous 15-minute window for large files on varying bandwidths
-    
-    uploadTimeout = setTimeout(() => {
-      xhr.abort();
-    }, 950000);
-
-    xhr.send(file);
-  });
+  throw new Error('Upload finalized but file transaction tracking identifier was not found.');
 }
 
 /**
