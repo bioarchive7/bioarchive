@@ -63,6 +63,10 @@ export async function getUploadUrl(
 }
 
 
+/**
+ * Step 2: Upload file by splitting it into smaller fragments
+ * CAREFULLY UPDATED: Converts chunks to Base64 to guarantee safe passage through Vercel serverless functions.
+ */
 export async function uploadFileToGoogleDrive(
   file: File,
   uploadUrl: string,
@@ -73,10 +77,30 @@ export async function uploadFileToGoogleDrive(
   const totalBytes = file.size;
   let offset = 0;
 
+  // Helper function to read a file slice as Base64 string
+  const readChunkAsBase64 = (blob: Blob): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        if (typeof reader.result === 'string') {
+          // Remove the data URL prefix (e.g., "data:application/pdf;base64,")
+          const base64Data = reader.result.split(',')[1];
+          resolve(base64Data);
+        } else {
+          reject(new Error('Failed to read chunk data as string string format.'));
+        }
+      };
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  };
+
   while (offset < totalBytes) {
     const end = Math.min(offset + CHUNK_SIZE, totalBytes);
-    const chunk = file.slice(offset, end);
-    const chunkLength = end - offset;
+    const rawChunk = file.slice(offset, end);
+    
+    // Convert chunk to safe base64 text payload
+    const base64Chunk = await readChunkAsBase64(rawChunk);
 
     const resultId = await new Promise<string | null>((resolve, reject) => {
       const xhr = new XMLHttpRequest();
@@ -87,7 +111,6 @@ export async function uploadFileToGoogleDrive(
           // 200/201 means final chunk received successfully, upload complete.
           if (xhr.status === 308 || xhr.status === 200 || xhr.status === 201) {
             if (end === totalBytes) {
-              // Final chunk complete, extract file ID from response body
               try {
                 const response = JSON.parse(xhr.responseText);
                 resolve(response.id || null);
@@ -98,6 +121,7 @@ export async function uploadFileToGoogleDrive(
               resolve(null); // Intermediate chunk successful
             }
           } else {
+            console.error('[Upload Debug] Server error response payload:', xhr.responseText);
             reject(new Error(`Chunk upload failed with status code ${xhr.status}`));
           }
         }
@@ -105,17 +129,19 @@ export async function uploadFileToGoogleDrive(
 
       xhr.open('PUT', '/api/upload-chunk', true);
       
-      // Set headers for the local server proxy route
-      xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
+      // Standard JSON content type headers for local route validation
+      xhr.setRequestHeader('Content-Type', 'application/json');
       xhr.setRequestHeader('x-upload-url', uploadUrl);
+      xhr.setRequestHeader('x-file-mime', file.type || 'application/octet-stream');
       xhr.setRequestHeader('Content-Range', `bytes ${offset}-${end - 1}/${totalBytes}`);
 
-      xhr.send(chunk);
+      // Pass as a clean JSON structural string
+      xhr.send(JSON.stringify({ chunk: base64Chunk }));
     });
 
     if (end === totalBytes && resultId) {
       if (onProgress) onProgress(100);
-      return resultId; // Entire flow complete!
+      return resultId; // Entire upload flow complete!
     }
 
     offset = end;

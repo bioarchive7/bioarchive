@@ -4,42 +4,50 @@ export async function PUT(request: NextRequest) {
   try {
     const uploadUrl = request.headers.get('x-upload-url');
     const contentRange = request.headers.get('content-range');
-    const contentType = request.headers.get('content-type') || 'application/octet-stream';
+    const contentType = request.headers.get('x-file-mime') || 'application/octet-stream';
 
     if (!uploadUrl || !contentRange) {
       return NextResponse.json(
-        { status: 'error', message: 'Missing routing headers x-upload-url or content-range' },
+        { status: 'error', message: 'Missing structural routing headers' },
         { status: 400 }
       );
     }
 
-    const chunkStream = request.body;
-    if (!chunkStream) {
-      return NextResponse.json({ status: 'error', message: 'No chunk data found' }, { status: 400 });
+    // Parse the safe JSON text payload
+    const body = await request.json();
+    if (!body || !body.chunk) {
+      return NextResponse.json({ status: 'error', message: 'Chunk data text string missing' }, { status: 400 });
     }
 
-    // Pass the chunk directly to Google Drive
+    // Decode the base64 string directly back into a clean node binary buffer
+    const binaryBuffer = Buffer.from(body.chunk, 'base64');
+
+    console.log(`[Chunk Proxy] Routing bytes block: ${contentRange}`);
+
+    // Dispatch the clean buffer data server-to-server directly to Google Drive
     const googleResponse = await fetch(uploadUrl, {
       method: 'PUT',
       headers: {
         'Content-Type': contentType,
         'Content-Range': contentRange,
       },
-      body: chunkStream,
-      // @ts-ignore
-      duplex: 'half',
+      body: binaryBuffer,
     });
 
     const responseText = await googleResponse.text();
+    console.log('[Chunk Proxy] Google Response status code:', googleResponse.status);
 
-    // Google returns 308 Resume Incomplete for intermediate chunks, or 200/201 for the final chunk
+    // Bubble Google's exact tracking status (308, 200, or 201) back to the client app
     return new Response(responseText, {
       status: googleResponse.status,
       headers: { 'Content-Type': 'application/json' },
     });
 
   } catch (error) {
-    console.error('[Chunk Proxy] Failed to pipe chunk:', error);
-    return NextResponse.json({ status: 'error', message: 'Chunk transfer failed' }, { status: 500 });
+    console.error('[Chunk Proxy] Failed to route chunk safely:', error);
+    return NextResponse.json(
+      { status: 'error', message: `Chunk transfer crash logic error: ${error instanceof Error ? error.message : String(error)}` },
+      { status: 500 }
+    );
   }
 }
