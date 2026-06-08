@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
       fileId,
       fileName,
       semester,
+      year,
       courseCode,
       courseName,
       professor,
@@ -60,7 +61,6 @@ export async function POST(request: NextRequest) {
       professor3,
       examType,
       fileType,
-      year,
       uploaderName,
       remarks,
     } = body;
@@ -124,6 +124,7 @@ export async function POST(request: NextRequest) {
     await appendFileRecord({
       fileId,
       semester,
+      year,
       courseCode,
       courseName,
       professor: professorList,
