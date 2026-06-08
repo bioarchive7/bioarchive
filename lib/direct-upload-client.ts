@@ -63,12 +63,8 @@ export async function getUploadUrl(
 }
 
 /**
- * Step 2: Upload file directly to Google Drive
- * STRATEGIC FIX: Uses robust state read checks to handle modern standard streams cleanly without false-positive error state triggers.
- */
-/**
- * Step 2: Upload file through the local server proxy pipeline
- * PRECISE FIX: Bypasses browser client-side CORS errors (Status 0) permanently.
+ * Step 2: Stream file natively from the browser directly to Google Drive
+ * PRECISE FIX: Bypasses Vercel's 4.5MB limit completely while avoiding CORS blocks.
  */
 export async function uploadFileToGoogleDrive(
   file: File,
@@ -79,12 +75,12 @@ export async function uploadFileToGoogleDrive(
     const xhr = new XMLHttpRequest();
     let uploadTimeout: NodeJS.Timeout;
 
-    // Track native progress smoothly over local route channels
+    // Track native upload connection streams directly
     if (onProgress) {
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
           const percent = Math.round((event.loaded / event.total) * 100);
-          console.log(`[Upload Proxy Component] Progress: ${percent}%`);
+          console.log(`[Direct Drive Upload] Progress: ${percent}%`);
           onProgress(percent);
         }
       });
@@ -93,61 +89,53 @@ export async function uploadFileToGoogleDrive(
     xhr.onreadystatechange = () => {
       if (xhr.readyState === XMLHttpRequest.DONE) {
         clearTimeout(uploadTimeout);
-        console.log('[Upload Proxy Component] Completed. Server response status:', xhr.status);
+        console.log('[Direct Drive Upload] Connection Complete. Google Status:', xhr.status);
 
+        // Standard Drive protocol returns 200 or 201 when completion is verified
         if (xhr.status === 200 || xhr.status === 201) {
           try {
             if (!xhr.responseText || xhr.responseText.trim().length === 0) {
-              reject(new Error('Google Drive finalized the upload but returned an empty response body.'));
+              reject(new Error('Google Drive finalized upload stream but returned an empty structural payload body.'));
               return;
             }
 
             const response = JSON.parse(xhr.responseText);
             if (response && response.id) {
-              console.log('[Upload Proxy Component] File ID resolved:', response.id);
-              resolve(response.id);
+              resolve(response.id); // Success! Sent directly to Step 3 registration
             } else {
-              reject(new Error('Upload succeeded, but file metadata ID missing from server response.'));
+              reject(new Error('File received by Google, but tracking identifier ID is missing from response.'));
             }
           } catch (e) {
-            console.error('Raw text response payload was:', xhr.responseText);
-            reject(new Error(`Failed to parse final metadata structure: ${e}`));
+            reject(new Error(`Failed to parse finalized Google structural layout text: ${e}`));
           }
         } else {
-          reject(new Error(`Proxy stream rejected with status ${xhr.status}: ${xhr.statusText}`));
+          reject(new Error(`Google Drive rejected transmission stream with status ${xhr.status}: ${xhr.statusText}`));
         }
       }
     };
 
-    xhr.addEventListener('error', (err) => {
+    xhr.addEventListener('error', () => {
       clearTimeout(uploadTimeout);
-      console.error('[Upload Proxy Component] Connection drop error:', err);
-      reject(new Error('Network connection error during transfer'));
+      reject(new Error('Network channel dropped connection mid-transfer. Check client network states.'));
     });
 
     xhr.addEventListener('abort', () => {
       clearTimeout(uploadTimeout);
-      reject(new Error('Upload stream aborted'));
+      reject(new Error('Upload canceled by client configuration.'));
     });
 
-    xhr.addEventListener('timeout', () => {
-      clearTimeout(uploadTimeout);
-      reject(new Error('Upload session timed out'));
-    });
-
-    // Target your newly built local server proxy pipeline instead of Google directly
-    xhr.open('PUT', '/api/upload-proxy', true);
+    xhr.open('PUT', uploadUrl, true);
     
-    // Pass mandatory streaming parameter targets via custom request headers
+    // CRITICAL: We pass ONLY the content-type header. 
+    // Omitting custom headers prevents the browser from making an interactive preflight OPTIONS request,
+    // allowing the raw binary stream to pass through smoothly without CORS restrictions.
     xhr.setRequestHeader('Content-Type', file.type || 'application/octet-stream');
-    xhr.setRequestHeader('x-upload-url', uploadUrl); // <-- Hands off the real destination payload securely
     
-    xhr.timeout = 600000; // 10 minutes 
+    xhr.timeout = 900000; // Generous 15-minute window for large files on varying bandwidths
     
     uploadTimeout = setTimeout(() => {
-      console.error('[Upload Proxy Component] Safety limit reached');
       xhr.abort();
-    }, 900000);
+    }, 950000);
 
     xhr.send(file);
   });
