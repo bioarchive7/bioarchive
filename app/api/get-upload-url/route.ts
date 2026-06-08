@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
       mimeType,
       fileSize,
       folderId,
-      origin: originHeader, // <-- Strategic parameter pass-through
+    //   origin: originHeader, // <-- Strategic parameter pass-through
     });
 
     return NextResponse.json(
