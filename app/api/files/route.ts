@@ -26,6 +26,7 @@ export async function GET(request: NextRequest) {
         (file) =>
           file.semester === semester &&
           file.courseCode.trim().toLowerCase() === courseCode.trim().toLowerCase() &&
+          // Updated here
           file.year === year
       );
       return NextResponse.json(filtered);
