@@ -74,11 +74,6 @@ export default function SortableFileTable({
     return colorMap[examType] || { bg: 'rgba(255,255,255,0.06)', text: 'var(--text-2)' };
   };
 
-  const getYearFromFileName = (fileName: string) => {
-    const match = fileName.match(/_(\d{4})_/);
-    return match ? match[1] : '—';
-  };
-
   // Desktop Table View
   if (!isMobile) {
     return (
@@ -233,7 +228,7 @@ export default function SortableFileTable({
                     </p>
                   </div>
 
-                  {/* Year */}
+                  {/* Year - FIX: Use file.year directly instead of extracting from filename */}
                   <div>
                     <p
                       style={{
@@ -243,16 +238,16 @@ export default function SortableFileTable({
                         fontVariantNumeric: 'tabular-nums',
                       }}
                     >
-                      {getYearFromFileName(file.fileName)}
+                      {file.year || '—'}
                     </p>
                   </div>
 
                   {/* Downloads */}
-                  <div style={{ textAlign: 'right' }}>
+                  <div style={{ textAlign: 'center' }}>
                     <p
                       style={{
                         fontSize: '12px',
-                        color: 'var(--text-3)',
+                        color: 'var(--text-2)',
                         margin: 0,
                         fontVariantNumeric: 'tabular-nums',
                       }}
@@ -262,63 +257,63 @@ export default function SortableFileTable({
                   </div>
 
                   {/* Actions */}
-                  <div style={{ display: 'flex', gap: '6px', justifyContent: 'center', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                     <motion.button
-                      whileHover={{ scale: 1.08 }}
+                      whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => setPreviewFileId(file.fileId)}
-                      title="Preview"
                       style={{
-                        width: '28px',
-                        height: '28px',
+                        width: '32px',
+                        height: '32px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
                         background: 'rgba(255,255,255,0.06)',
                         border: '1px solid rgba(255,255,255,0.1)',
-                        borderRadius: '6px',
+                        borderRadius: '8px',
                         cursor: 'pointer',
-                        color: 'var(--text-2)',
+                        color: 'var(--text-3)',
                         transition: 'all 0.15s',
                       }}
                       onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background = `${accentColor}20`;
+                        (e.currentTarget as HTMLButtonElement).style.background = `${accentColor}44`;
                         (e.currentTarget as HTMLButtonElement).style.color = accentColor;
                       }}
                       onMouseLeave={(e) => {
                         (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)';
-                        (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-2)';
+                        (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-3)';
                       }}
                     >
-                      <Eye size={12} strokeWidth={2} />
+                      <Eye size={14} strokeWidth={2} />
                     </motion.button>
 
                     <motion.button
-                      whileHover={{ scale: 1.08 }}
+                      whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                       onClick={() => handleDownload(file)}
-                      title="Download"
                       style={{
-                        width: '28px',
-                        height: '28px',
+                        width: '32px',
+                        height: '32px',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        background: `${accentColor}20`,
-                        border: `1px solid ${accentColor}40`,
-                        borderRadius: '6px',
+                        background: 'rgba(255,255,255,0.06)',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        borderRadius: '8px',
                         cursor: 'pointer',
-                        color: accentColor,
+                        color: 'var(--text-3)',
                         transition: 'all 0.15s',
                       }}
                       onMouseEnter={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background = `${accentColor}35`;
+                        (e.currentTarget as HTMLButtonElement).style.background = `${accentColor}44`;
+                        (e.currentTarget as HTMLButtonElement).style.color = accentColor;
                       }}
                       onMouseLeave={(e) => {
-                        (e.currentTarget as HTMLButtonElement).style.background = `${accentColor}20`;
+                        (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)';
+                        (e.currentTarget as HTMLButtonElement).style.color = 'var(--text-3)';
                       }}
                     >
-                      <Download size={12} strokeWidth={2} />
+                      <Download size={14} strokeWidth={2} />
                     </motion.button>
                   </div>
                 </motion.div>
@@ -340,12 +335,12 @@ export default function SortableFileTable({
                 style={{
                   position: 'fixed',
                   inset: 0,
-                  background: 'rgba(0,0,0,0.85)',
+                  background: 'rgba(0,0,0,0.9)',
                   backdropFilter: 'blur(12px)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  zIndex: 9999,
+                  zIndex: 10000,
                   padding: '20px',
                 }}
               >
@@ -358,7 +353,7 @@ export default function SortableFileTable({
                   style={{
                     width: '100%',
                     maxWidth: '1000px',
-                    height: '85vh',
+                    height: 'min(85vh, 600px)',
                     background: 'rgba(10,26,15,0.98)',
                     border: '1px solid rgba(116,198,157,0.25)',
                     borderRadius: '16px',
@@ -423,322 +418,139 @@ export default function SortableFileTable({
     );
   }
 
-  // Mobile Card View
+  // Mobile Table View
   return (
     <>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
         {files.map((file, i) => {
           const examTypeColors = getExamTypeBadgeColor(file.examType);
-          const year = getYearFromFileName(file.fileName);
+
           return (
-            <motion.button
+            <motion.div
               key={file.fileId}
-              initial={{ opacity: 0, y: 10 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: i * 0.05 }}
               onClick={() => setSelectedFileIndex(i)}
               style={{
-                width: '100%',
-                textAlign: 'left',
-                padding: '12px 14px',
-                borderRadius: '10px',
+                padding: '14px',
                 background: 'rgba(255,255,255,0.04)',
-                border: '1px solid rgba(255,255,255,0.08)',
+                border: `1px solid ${accentColor}22`,
+                borderRadius: '10px',
                 cursor: 'pointer',
-                transition: 'all 0.2s',
+                transition: 'all 0.15s',
               }}
               onMouseEnter={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.07)';
-                (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.12)';
+                (e.currentTarget as HTMLDivElement).style.background = `${accentColor}14`;
+                (e.currentTarget as HTMLDivElement).style.borderColor = `${accentColor}44`;
               }}
               onMouseLeave={(e) => {
-                (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.04)';
-                (e.currentTarget as HTMLButtonElement).style.borderColor = 'rgba(255,255,255,0.08)';
+                (e.currentTarget as HTMLDivElement).style.background = 'rgba(255,255,255,0.04)';
+                (e.currentTarget as HTMLDivElement).style.borderColor = `${accentColor}22`;
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', marginBottom: '8px' }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <p
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      color: 'var(--text)',
-                      margin: '0 0 4px 0',
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                    }}
-                  >
-                    {file.fileName.replace(/\.[^.]*$/, '')}
-                  </p>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                    <span
-                      style={{
-                        fontSize: '10px',
-                        fontWeight: 600,
-                        padding: '2px 6px',
-                        borderRadius: '3px',
-                        background: examTypeColors.bg,
-                        color: examTypeColors.text,
-                        whiteSpace: 'nowrap',
-                      }}
-                    >
-                      {formatExamType(file.examType)}
-                    </span>
-                    {year !== '—' && (
-                      <span style={{ fontSize: '10px', color: 'var(--text-3)' }}>
-                        {year}
-                      </span>
-                    )}
-                    {file.professor && file.professor !== 'Other' && (
-                      <span style={{ fontSize: '10px', color: 'var(--text-3)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {file.professor}
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <ChevronRight size={18} color="var(--text-3)" />
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px', marginBottom: '8px' }}>
+                <span
+                  style={{
+                    fontSize: '9px',
+                    fontWeight: 600,
+                    padding: '2px 6px',
+                    borderRadius: '3px',
+                    background: examTypeColors.bg,
+                    color: examTypeColors.text,
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
+                  }}
+                >
+                  {formatExamType(file.examType)}
+                </span>
+                <p
+                  style={{
+                    fontSize: '12px',
+                    fontWeight: 500,
+                    color: 'var(--text)',
+                    margin: 0,
+                    flex: 1,
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                  title={file.fileName}
+                >
+                  {file.fileName.replace(/\.[^.]*$/, '')}
+                </p>
               </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '10px', color: 'var(--text-3)' }}>
-                <span>{file.downloadCount || 0} downloads</span>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>
+                  {file.professor || '—'}
+                </span>
+                <span style={{ fontSize: '11px', color: 'var(--text-3)' }}>
+                  {file.year || '—'} • {file.downloadCount || 0} downloads
+                </span>
               </div>
-            </motion.button>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setPreviewFileId(file.fileId);
+                  }}
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '8px',
+                    fontSize: '11px',
+                    fontWeight: 500,
+                    background: 'rgba(255,255,255,0.06)',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: '8px',
+                    color: 'var(--text)',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Eye size={12} />
+                  Preview
+                </motion.button>
+
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleDownload(file);
+                  }}
+                  style={{
+                    flex: 1,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px',
+                    padding: '8px',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    background: accentColor,
+                    border: 'none',
+                    borderRadius: '8px',
+                    color: '#0a1a0f',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Download size={12} />
+                  Get
+                </motion.button>
+              </div>
+            </motion.div>
           );
         })}
       </div>
 
-      {/* ── Mobile File Detail Modal ────────────────────────────────────────── */}
-      {mounted && selectedFileIndex !== null && typeof document !== 'undefined' &&
-        createPortal(
-          <AnimatePresence>
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              onClick={() => setSelectedFileIndex(null)}
-              style={{
-                position: 'fixed',
-                inset: 0,
-                background: 'rgba(0,0,0,0.6)',
-                backdropFilter: 'blur(8px)',
-                zIndex: 9998,
-              }}
-            >
-              <motion.div
-                initial={{ y: '100%', opacity: 0 }}
-                animate={{ y: 0, opacity: 1 }}
-                exit={{ y: '100%', opacity: 0 }}
-                transition={{ duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-                onClick={(e) => e.stopPropagation()}
-                style={{
-                  position: 'fixed',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  maxHeight: '85vh',
-                  background: 'rgba(10,26,15,0.98)',
-                  borderTop: '1px solid rgba(255,255,255,0.1)',
-                  borderRadius: '16px 16px 0 0',
-                  backdropFilter: 'blur(20px)',
-                  overflow: 'hidden',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  zIndex: 9999,
-                  boxShadow: '0 -8px 32px rgba(0,0,0,0.4)',
-                }}
-              >
-                {/* Header */}
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '16px',
-                    borderBottom: '1px solid rgba(255,255,255,0.06)',
-                    flexShrink: 0,
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: '10px',
-                      fontWeight: 600,
-                      letterSpacing: '0.1em',
-                      textTransform: 'uppercase',
-                      color: 'var(--text-3)',
-                    }}
-                  >
-                    File Details
-                  </span>
-                  <button
-                    onClick={() => setSelectedFileIndex(null)}
-                    style={{
-                      width: '32px',
-                      height: '32px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      background: 'rgba(255,255,255,0.06)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      borderRadius: '8px',
-                      cursor: 'pointer',
-                      color: 'var(--text-2)',
-                    }}
-                  >
-                    <X size={14} strokeWidth={2.2} />
-                  </button>
-                </div>
-
-                {/* Content */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '16px' }}>
-                  {selectedFileIndex !== null && (
-                    <>
-                      <div style={{ marginBottom: '20px' }}>
-                        <p style={{ fontSize: '10px', color: 'var(--text-3)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>
-                          File Name
-                        </p>
-                        <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', margin: 0, wordBreak: 'break-word' }}>
-                          {files[selectedFileIndex].fileName}
-                        </p>
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-                        <div>
-                          <p style={{ fontSize: '10px', color: 'var(--text-3)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>
-                            Exam Type
-                          </p>
-                          <span
-                            style={{
-                              fontSize: '12px',
-                              fontWeight: 600,
-                              padding: '4px 8px',
-                              borderRadius: '4px',
-                              background: getExamTypeBadgeColor(files[selectedFileIndex].examType).bg,
-                              color: getExamTypeBadgeColor(files[selectedFileIndex].examType).text,
-                              display: 'inline-block',
-                            }}
-                          >
-                            {formatExamType(files[selectedFileIndex].examType)}
-                          </span>
-                        </div>
-                        <div>
-                          <p style={{ fontSize: '10px', color: 'var(--text-3)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>
-                            Year
-                          </p>
-                          <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', margin: 0 }}>
-                            {getYearFromFileName(files[selectedFileIndex].fileName)}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div style={{ marginBottom: '20px' }}>
-                        <p style={{ fontSize: '10px', color: 'var(--text-3)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>
-                          Professor
-                        </p>
-                        <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', margin: 0 }}>
-                          {files[selectedFileIndex].professor || 'Not specified'}
-                        </p>
-                      </div>
-
-                      <div>
-                        <p style={{ fontSize: '10px', color: 'var(--text-3)', marginBottom: '4px', textTransform: 'uppercase', fontWeight: 600 }}>
-                          Downloads
-                        </p>
-                        <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', margin: 0 }}>
-                          {files[selectedFileIndex].downloadCount || 0}
-                        </p>
-                      </div>
-                    </>
-                  )}
-                </div>
-
-                {/* Actions */}
-                <div
-                  style={{
-                    display: 'flex',
-                    gap: '10px',
-                    padding: '16px',
-                    borderTop: '1px solid rgba(255,255,255,0.06)',
-                    flexShrink: 0,
-                  }}
-                >
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      if (selectedFileIndex !== null) {
-                        setPreviewFileId(files[selectedFileIndex].fileId);
-                      }
-                    }}
-                    style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      padding: '12px',
-                      borderRadius: '10px',
-                      background: 'rgba(255,255,255,0.06)',
-                      border: '1px solid rgba(255,255,255,0.1)',
-                      cursor: 'pointer',
-                      color: 'var(--text)',
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.1)';
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.background = 'rgba(255,255,255,0.06)';
-                    }}
-                  >
-                    <Eye size={16} />
-                    Preview
-                  </motion.button>
-
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={() => {
-                      if (selectedFileIndex !== null) {
-                        handleDownload(files[selectedFileIndex]);
-                      }
-                    }}
-                    style={{
-                      flex: 1,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '8px',
-                      padding: '12px',
-                      borderRadius: '10px',
-                      background: 'var(--gold)',
-                      color: '#0a1a0f',
-                      fontSize: '13px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      border: 'none',
-                      transition: 'filter 0.15s',
-                    }}
-                    onMouseEnter={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.filter = 'brightness(1.1)';
-                    }}
-                    onMouseLeave={(e) => {
-                      (e.currentTarget as HTMLButtonElement).style.filter = 'brightness(1)';
-                    }}
-                  >
-                    <Download size={16} />
-                    Download
-                  </motion.button>
-                </div>
-              </motion.div>
-            </motion.div>
-          </AnimatePresence>,
-          document.body
-        )}
-
-      {/* ── Preview Modal for Mobile ────────────────────────────────────────── */}
+      {/* Mobile Preview Modal */}
       {mounted && previewFileId && typeof document !== 'undefined' &&
         createPortal(
           <AnimatePresence>
