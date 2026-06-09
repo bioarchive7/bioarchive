@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const semester   = searchParams.get('semester');
     const courseCode = searchParams.get('courseCode');
+    const year = searchParams.get('year');
 
     const allFiles = await getAllFiles();
 
@@ -24,7 +25,8 @@ export async function GET(request: NextRequest) {
       const filtered = allFiles.filter(
         (file) =>
           file.semester === semester &&
-          file.courseCode.trim().toLowerCase() === courseCode.trim().toLowerCase()
+          file.courseCode.trim().toLowerCase() === courseCode.trim().toLowerCase() &&
+          file.year === year
       );
       return NextResponse.json(filtered);
     }
