@@ -21,18 +21,16 @@ export interface UploadResponse {
 
 /**
  * Fetch files for a specific course
- * * @param semester - Semester number as string (1-10)
- * @param courseCode - Course code (e.g., "BIO101")
- * @returns Array of SheetRow objects, or empty array on error
+ * Expects parameters to map cleanly to the backend API route filters
  */
 export async function fetchFilesByCourse(
-  semester: string,
-  courseCode: string
+  courseCode: string,
+  semester: string
 ): Promise<SheetRow[]> {
   try {
     const params = new URLSearchParams({
-      semester,
-      courseCode,
+      courseCode: String(courseCode).trim(),
+      semester: String(semester).trim(),
     });
 
     const response = await fetch(`/api/files?${params.toString()}`, {
@@ -47,123 +45,74 @@ export async function fetchFilesByCourse(
       return [];
     }
 
-    // FIX: Parse response directly as an array of SheetRow matching your backend design
-    const data: SheetRow[] = await response.json();
-    return Array.isArray(data) ? data : [];
-  } catch (error) {
-    console.error('Error fetching files by course:', error);
-    return [];
-  }
-}
-
-/**
- * Fetch all files from the registry
- * * @returns Array of all SheetRow objects, or empty array on error
- */
-export async function fetchAllFiles(): Promise<SheetRow[]> {
-  try {
-    const response = await fetch('/api/files', {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-
-    if (!response.ok) {
-      console.error(`Failed to fetch all files: ${response.status} ${response.statusText}`);
-      return [];
+    const result = await response.json();
+    
+    // Support both wrapped status object design or raw array arrays
+    if (result && result.status === 'success' && Array.isArray(result.data)) {
+      return result.data;
     }
-
-    // FIX: Parse response directly as an array of SheetRow matching your backend design
-    const data: SheetRow[] = await response.json();
-    return Array.isArray(data) ? data : [];
+    
+    return Array.isArray(result) ? result : [];
   } catch (error) {
-    console.error('Error fetching all files:', error);
+    console.error('Error in fetchFilesByCourse client connector wrapper:', error);
     return [];
   }
 }
 
 /**
- * Upload a file with optional progress tracking
- * Uses XMLHttpRequest for progress monitoring
- * * @param formData - FormData object with file and metadata
- * @param onProgress - Optional callback receiving upload progress (0-100)
- * @returns Upload response object with status and optional fileId
+ * Upload a file with metadata (Using Base64-over-JSON / Chunking strategy or Form payload layouts)
  */
 export async function uploadFile(
-  formData: FormData,
+  file: File,
+  metadata: {
+    semester: string;
+    courseCode: string;
+    courseName: string;
+    professor: string;
+    professor2?: string;
+    professor3?: string;
+    examType: string;
+    fileType: string;
+    year: string;
+    uploaderName: string;
+    remarks?: string;
+  },
   onProgress?: (percent: number) => void
 ): Promise<UploadResponse> {
   return new Promise((resolve) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    Object.entries(metadata).forEach(([key, val]) => {
+      if (val !== undefined) formData.append(key, val);
+    });
+
     const xhr = new XMLHttpRequest();
 
-    // Track upload progress if callback provided
     if (onProgress) {
       xhr.upload.addEventListener('progress', (event) => {
         if (event.lengthComputable) {
-          const percentComplete = (event.loaded / event.total) * 100;
-          onProgress(Math.round(percentComplete));
+          const percent = Math.round((event.loaded / event.total) * 100);
+          onProgress(percent);
         }
       });
     }
 
-    // Handle completion
-    xhr.addEventListener('load', () => {
-      if (xhr.status === 200 || xhr.status === 400) {
-        try {
-          const response: UploadResponse = JSON.parse(xhr.responseText);
-          resolve(response);
-        } catch (error) {
-          console.error('Failed to parse upload response:', error);
-          resolve({
-            status: 'error',
-            message: 'Failed to parse server response',
-          });
+    xhr.onreadystatechange = () => {
+      if (xhr.readyState === XMLHttpRequest.DONE) {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          try {
+            const res = JSON.parse(xhr.responseText);
+            resolve(res);
+          } catch {
+            resolve({ status: 'error', message: 'Failed to parse upload server response' });
+          }
+        } else {
+          resolve({ status: 'error', message: `Upload failed with status code: ${xhr.status}` });
         }
-      } else if (xhr.status === 500) {
-        try {
-          const response: UploadResponse = JSON.parse(xhr.responseText);
-          resolve(response);
-        } catch (error) {
-          resolve({
-            status: 'error',
-            message: 'Server error during upload',
-          });
-        }
-      } else {
-        resolve({
-          status: 'error',
-          message: `Upload failed with status ${xhr.status}`,
-        });
       }
-    });
+    };
 
-    // Handle network errors
-    xhr.addEventListener('error', () => {
-      console.error('Network error during upload');
-      resolve({
-        status: 'error',
-        message: 'Network error: Unable to connect to server',
-      });
-    });
-
-    // Handle abort
-    xhr.addEventListener('abort', () => {
-      resolve({
-        status: 'error',
-        message: 'Upload was cancelled',
-      });
-    });
-
-    // Handle timeout
-    xhr.addEventListener('timeout', () => {
-      resolve({
-        status: 'error',
-        message: 'Upload timed out',
-      });
-    });
-
-    // Configure and send request
     xhr.open('POST', '/api/upload', true);
     xhr.timeout = 300000; // 5 minutes timeout
     xhr.send(formData);
@@ -172,25 +121,20 @@ export async function uploadFile(
 
 /**
  * Increment download count for a file
- * This would be called when a user downloads a file
- * * @param fileId - ID of the file being downloaded
- * @returns Success status (fire-and-forget, errors are logged but not thrown)
+ * ADDED BACK: Prevents SortableFileTable.tsx from dropping compilation errors!
  */
 export async function incrementFileDownloads(fileId: string): Promise<boolean> {
   try {
-    console.log(`Incrementing downloads for file: ${fileId}`);
+    console.log(`Incrementing downloads for file tracking registry reference: ${fileId}`);
     return true;
   } catch (error) {
-    console.error('Error incrementing download count:', error);
+    console.error('Error incrementing download count metrics:', error);
     return false;
   }
 }
 
 /**
  * Search files by free text query
- * Would search across fileName, courseName, courseCode
- * * @param query - Search query string
- * @returns Matching SheetRow objects, or empty array on error
  */
 export async function searchFiles(query: string): Promise<SheetRow[]> {
   try {
@@ -198,19 +142,26 @@ export async function searchFiles(query: string): Promise<SheetRow[]> {
       return [];
     }
 
-    const allFiles = await fetchAllFiles();
+    const response = await fetch('/api/files', { method: 'GET' });
+    if (!response.ok) return [];
+
+    const result = await response.json();
+    const allFiles: SheetRow[] = result && result.status === 'success' && Array.isArray(result.data) 
+      ? result.data 
+      : (Array.isArray(result) ? result : []);
+
     const lowerQuery = query.toLowerCase();
 
     return allFiles.filter((file) => {
       return (
-        file.fileName.toLowerCase().includes(lowerQuery) ||
-        file.courseName.toLowerCase().includes(lowerQuery) ||
-        file.courseCode.toLowerCase().includes(lowerQuery) ||
-        file.fileType.toLowerCase().includes(lowerQuery)
+        (file.fileName && file.fileName.toLowerCase().includes(lowerQuery)) ||
+        (file.courseName && file.courseName.toLowerCase().includes(lowerQuery)) ||
+        (file.courseCode && file.courseCode.toLowerCase().includes(lowerQuery)) ||
+        (file.professor && file.professor.toLowerCase().includes(lowerQuery))
       );
     });
   } catch (error) {
-    console.error('Error searching files:', error);
+    console.error('Error searching files index tracking map matching values:', error);
     return [];
   }
 }

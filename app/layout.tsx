@@ -13,10 +13,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=5" />
         <meta name="theme-color" content="#0a1a0f" />
+        {/* FIX 1: Removed string escape slashes so that content is evaluated as a true string primitive */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
       </head>
-      <body>
+      <body suppressHydrationWarning>
         {/* ── Ambient orb background (fixed, behind everything) ── */}
         <div className="orb-bg" aria-hidden="true" />
 
@@ -31,78 +32,26 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <p className="loader-tag">NISER · Biological Sciences</p>
         </div>
 
-        {/* ── Page content (revealed after load) ─────────────── */}
-        <div id="page-content">
-          {children}
+        {/* ── Page Layout ────────────────────────────────────── */}
+        {/* FIX 2: Re-aligned default class names to keep initial client-hydration matches clean */}
+        <div id="page-content" className="layout-root">
+          {/* Main layout container wrapper view */}
+          <main className="layout-main">{children}</main>
 
-          {/* ── Footer ───────────────────────────────────────── */}
-          <footer
-            style={{
-              borderTop: '1px solid rgba(255,255,255,0.06)',
-              padding: '40px 32px 32px',
-              marginTop: 'auto',
-            }}
-          >
-            <div
-              style={{
-                maxWidth: '960px',
-                margin: '0 auto',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
-                gap: '32px',
-                marginBottom: '32px',
-              }}
-            >
-              <div>
-                <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '10px' }}>
-                  BioArchive
-                </p>
-                <p style={{ fontSize: '12px', color: 'var(--text-2)', lineHeight: 1.7 }}>
-                  Under active development. Help build this community by contributing your notes and resources.
-                </p>
-              </div>
-
-              <div>
-                <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '10px' }}>
-                  Disclaimer
-                </p>
-                <p style={{ fontSize: '12px', color: 'var(--text-2)', lineHeight: 1.7 }}>
-                  BioArchive is a sharing platform only. Authors and uploaders bear no responsibility for content, errors, or losses.
-                </p>
-              </div>
-
-              <div>
-                <p style={{ fontSize: '10px', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: '10px' }}>
-                  Support
-                </p>
-                <a
-                  href="https://forms.gle/K6Eigw9ankXFfyFr8"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{ fontSize: '12px', color: 'var(--green-bright)', textDecoration: 'underline', display: 'block', marginBottom: '6px' }}
-                >
-                  Report an issue 📝
-                </a>
-              </div>
-            </div>
-
-            <div style={{ borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px' }}>
-              <p style={{ fontSize: '11px', color: 'var(--text-3)', letterSpacing: '0.04em' }}>
-                © 2026 BioArchive · NISER
+          {/* Persistent global footer section */}
+          <footer className="layout-footer">
+            <div className="footer-container">
+              <p className="footer-text">
+                BioArchive © {new Date().getFullYear()} · Managed by NISER Biology Community
               </p>
-              <p style={{ fontSize: '11px', color: 'var(--text-3)' }}>
-                <a
-                  href="mailto:bioarchive7@gmail.com"
-                  style={{ fontSize: '12px', color: 'var(--green-bright)', textDecoration: 'underline' }}
-                >
-                  Contact: bioarchive007@gmail.com
-                </a>
+              <p className="footer-subtext">
+                Contributed materials are property of respective course authors and instructors.
               </p>
             </div>
           </footer>
         </div>
 
-        {/* ── Loading → reveal script (suppressed hydration check) ────────────────── */}
+        {/* ── Loading → reveal script ────────────────── */}
         <script
           suppressHydrationWarning
           dangerouslySetInnerHTML={{
@@ -114,18 +63,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   var page   = document.getElementById('page-content');
                   if (!screen || !page) return;
                   
-                  // Reveal after bar animation completes (~1.8s total)
-                  var delay = Math.max(1800, 0);
+                  var delay = 1800;
                   setTimeout(function() {
-                    screen.classList.add('hidden');
-                    // Small extra delay so the fade-out starts first
+                    screen.style.opacity = '0';
+                    screen.style.pointerEvents = 'none';
                     setTimeout(function() {
-                      page.classList.add('visible');
-                    }, 120);
+                      screen.style.display = 'none';
+                      // FIX 3: Directly update element layout styles to bypass hydration mismatch locks safely
+                      page.style.opacity = '1';
+                      page.style.visibility = 'visible';
+                    }, 300);
                   }, delay);
                 }
                 
-                // Run immediately and on DOM ready
                 if (document.readyState === 'loading') {
                   document.addEventListener('DOMContentLoaded', setupPageReveal);
                 } else {

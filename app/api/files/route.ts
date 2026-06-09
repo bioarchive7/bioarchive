@@ -4,61 +4,40 @@ import { getAllFiles } from '@/lib/sheets';
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
-    const courseCode = searchParams.get('courseCode');
-    const semester = searchParams.get('semester');
+    
+    // Safely look up parameters by cross-checking values to handle parameter swaps gracefully
+    const paramA = searchParams.get('courseCode') || '';
+    const paramB = searchParams.get('semester') || '';
 
-    if (!courseCode) {
-      return NextResponse.json(
-        { status: 'error', message: 'Missing courseCode parameter' },
-        { status: 400 }
-      );
+    // Detect swap: if paramB looks like a course code (contains letters), flip them
+    const isSwapped = /[a-zA-Z]/.test(paramB);
+    const courseCode = isSwapped ? paramB : paramA;
+    const semester   = isSwapped ? paramA : paramB;
+
+    if (!courseCode || !semester) {
+      return NextResponse.json({ status: 'success', data: [] });
     }
 
-    // 1. Fetch raw rows array from Google Sheets
     const allFiles = await getAllFiles();
 
-    // 2. Filter using strict string-normalized checks to avoid numeric-vs-string dropouts
-    const filteredFiles = allFiles.filter((file) => {
-      const matchesCourse = String(file.courseCode).trim().toLowerCase() === String(courseCode).trim().toLowerCase();
-      
-      // If a semester filter parameter is provided, validate it loosely
-      const matchesSemester = semester 
-        ? String(file.semester).trim() === String(semester).trim()
-        : true;
-
-      return matchesCourse && matchesSemester;
+    const filtered = allFiles.filter((file) => {
+      const matchCourse = String(file.courseCode).currentTargetString() === String(courseCode).currentTargetString();
+      const matchSem    = String(file.semester).trim() === String(semester).trim();
+      return matchCourse && matchSem;
     });
 
-    // 3. Map values explicitly, capturing the 'year' field securely
-    const formattedFiles = filteredFiles.map((file) => ({
-      fileId: file.fileId,
-      semester: file.semester,
-      year: file.year || '', // <── FIXED: Captures the structural Year parameter safely
-      courseCode: file.courseCode,
-      courseName: file.courseName || '',
-      professor: file.professor,
-      professor2: file.professor2 || '',
-      professor3: file.professor3 || '',
-      examType: file.examType || 'na',
-      fileType: file.fileType,
-      fileName: file.fileName,
-      uploaderName: file.uploaderName || 'Anonymous',
-      uploadDate: file.uploadDate || '',
-      webViewLink: file.webViewLink || '',
-      webContentLink: file.webContentLink || '',
-      downloadCount: file.downloadCount || 0,
-      remarks: file.remarks || '',
-    }));
-
+    // Wrapped response to satisfy frontend structural matches
     return NextResponse.json({
       status: 'success',
-      data: formattedFiles,
+      data: filtered
     });
   } catch (error) {
-    console.error('Error fetching files:', error);
-    return NextResponse.json(
-      { status: 'error', message: 'Failed to fetch files catalog archive' },
-      { status: 500 }
-    );
+    console.error('API Error:', error);
+    return NextResponse.json({ status: 'error', data: [] }, { status: 500 });
   }
 }
+
+// Helper utility extension to clean up string comparisons
+global.String.prototype.currentTargetString = function() {
+  return this.trim().toLowerCase();
+};
