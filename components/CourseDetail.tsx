@@ -7,7 +7,7 @@ import { ArrowLeft, Download, Eye, ChevronUp, BookOpen } from 'lucide-react';
 import { SheetRow } from '@/lib/sheets';
 import { fetchFilesByCourse } from '@/lib/api-client';
 import { CURRICULUM, Course } from '@/data/curriculum';
-import SortableFileTable from './SortableFileTable';
+import SortableFileTable from '@/components/SortableFileTable';
 
 interface CourseDetailProps {
   courseCode: string;
@@ -92,7 +92,7 @@ export default function CourseDetail({ courseCode, semester }: CourseDetailProps
 
     const getFiles = async () => {
       setIsLoading(true);
-      const result = await fetchFilesByCourse(semester, courseCode);
+      const result = await fetchFilesByCourse(courseCode, semester);
       setFiles(result);
       setIsLoading(false);
     };

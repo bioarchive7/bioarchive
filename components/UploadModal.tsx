@@ -7,6 +7,7 @@ import { CURRICULUM } from '@/data/curriculum';
 import config from '@/config';
 import { FileType, formatFileSize } from '@/lib/utils';
 import { uploadFileDirectToDrive } from '@/lib/direct-upload-client';
+import { generateRenamedFilename } from '@/lib/file-renaming';
 
 interface UploadModalProps {
   isOpen?: boolean;
@@ -176,10 +177,19 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
         const fileProgress = (i / uploadedFiles.length) * 100;
         setUploadProgress(Math.round(fileProgress));
 
+        // Generate renamed filename
+        const renamedFileName = generateRenamedFilename(file.name, {
+          courseCode,
+          courseName,
+          fileType: fileType === 'other' ? otherFileType : fileType,
+          year,
+          examType: fileType === 'qpaper' ? (examType === 'other' ? otherExamType : examType) : undefined,
+        });
+
         const result = await uploadFileDirectToDrive(
           file,
           {
-            fileName: file.name,
+            fileName: renamedFileName,
             semester,
             courseCode,
             courseName,
