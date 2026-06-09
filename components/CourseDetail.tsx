@@ -110,6 +110,13 @@ export default function CourseDetail({ courseCode, semester }: CourseDetailProps
     {} as Record<string, SheetRow[]>
   );
 
+  // FIX: Add files with unknown/custom types to 'other' category
+  const predefinedTypes = Object.keys(FILE_TYPE_CONFIG);
+  const unknownTypeFiles = files.filter((f) => !predefinedTypes.includes(f.fileType));
+  if (unknownTypeFiles.length > 0) {
+    filesByType['other'] = [...(filesByType['other'] || []), ...unknownTypeFiles];
+  }
+
   // Get files for a type and sort them
   const getSortedFiles = (type: string, fileList: SheetRow[]) => {
     const state = sortState[type] || { field: 'year', order: 'desc' };
@@ -118,8 +125,9 @@ export default function CourseDetail({ courseCode, semester }: CourseDetailProps
       let bVal: any = b[state.field as keyof SheetRow];
 
       if (state.field === 'year') {
-        const aYear = parseInt(a.fileName.match(/_(\d{4})_/)?.[1] || '0') || 0;
-        const bYear = parseInt(b.fileName.match(/_(\d{4})_/)?.[1] || '0') || 0;
+        // FIX: Use actual year field from database instead of extracting from filename
+        const aYear = parseInt(a.year) || 0;
+        const bYear = parseInt(b.year) || 0;
         aVal = aYear;
         bVal = bYear;
       }
