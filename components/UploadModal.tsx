@@ -205,7 +205,6 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
             professor2: professor2 ? (professor2 === 'Other' ? otherProfessor : professor2) : undefined,
             professor3: professor3 ? (professor3 === 'Other' ? otherProfessor : professor3) : undefined,
             examType: fileType === 'qpaper' ? (examType === 'other' ? otherExamType : examType) : 'na',
-            // FIX: Always store fileType as 'other' when user selects 'other', don't replace with custom type
             fileType: fileType,
             year,
             uploaderName: uploaderName || 'Anonymous',
@@ -257,722 +256,334 @@ export default function UploadModal({ isOpen = false, onClose }: UploadModalProp
     setSemester(''); 
     setCourseCode(''); 
     setCourseName('');
-    setProfessor('');
+    setProfessor(''); 
     setProfessor2('');
     setProfessor3('');
     setOtherProfessor('');
-    setFileType('');
+    setFileType(''); 
     setOtherFileType('');
-    setExamType('');
+    setExamType(''); 
     setOtherExamType('');
     setYear('');
-    setUploadedFiles([]);
-    setUploaderName('');
+    setUploadedFiles([]); 
+    setUploaderName(''); 
     setConsent(false);
     setRemarks('');
-    setUploadStatus('idle');
+    setUploadProgress(0); 
+    setUploadStatus('idle'); 
     setUploadMessage('');
   };
 
-  const handleClose = () => {
-    resetForm();
-    onClose?.();
+  const handleClose = () => { resetForm(); onClose?.(); };
+
+  const canStep1 = !!(semester && courseCode && professor && year);
+  const canStep2 = !!(fileType && uploadedFiles.length > 0 && (fileType !== 'qpaper' || !!examType));
+
+  const contentVar = {
+    hidden:  { opacity: 0, x: 20 },
+    visible: { opacity: 1, x: 0, transition: { duration: 0.22 } },
+    exit:    { opacity: 0, x: -20, transition: { duration: 0.18 } },
   };
 
   if (!isOpen) return null;
 
+  const allProfessors = [
+    ...professors.filter((p) => p && p !== 'Other'),
+    'Other',
+  ];
+
   return (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      onClick={handleClose}
-      style={{
-        position: 'fixed',
-        inset: 0,
-        background: 'rgba(0,0,0,0.5)',
-        backdropFilter: 'blur(8px)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 5000,
-        padding: '20px',
-      }}
-    >
-      <motion.div
-        initial={{ scale: 0.96, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.96, opacity: 0 }}
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          width: '100%',
-          maxWidth: '600px',
-          maxHeight: '90vh',
-          background: 'rgba(10, 26, 15, 0.95)',
-          border: '1px solid rgba(116, 198, 157, 0.25)',
-          borderRadius: '16px',
-          overflow: 'hidden',
-          display: 'flex',
-          flexDirection: 'column',
-          backdropFilter: 'blur(20px)',
-        }}
-      >
-        {/* ── Header ──────────────────────────────────────────────── */}
-        <div
+    <AnimatePresence>
+      {isOpen && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          onClick={handleClose}
           style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.6)',
+            backdropFilter: 'blur(8px)',
             display: 'flex',
             alignItems: 'center',
-            justifyContent: 'space-between',
-            padding: '20px',
-            borderBottom: '1px solid rgba(255, 255, 255, 0.06)',
-            background: 'rgba(0, 0, 0, 0.2)',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '16px',
           }}
         >
-          <h2
+          <motion.div
+            initial={{ scale: 0.92, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            exit={{ scale: 0.92, opacity: 0 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+            onClick={(e) => e.stopPropagation()}
             style={{
-              fontSize: '16px',
-              fontWeight: 600,
-              color: 'var(--text)',
-              margin: 0,
-            }}
-          >
-            Upload Course Material
-          </h2>
-          <button
-            onClick={handleClose}
-            style={{
-              width: '32px',
-              height: '32px',
+              width: '100%',
+              maxWidth: '540px',
+              background: 'var(--bg)',
+              border: '1px solid var(--glass-border)',
+              borderRadius: '16px',
+              overflow: 'hidden',
+              boxShadow: '0 24px 60px rgba(0,0,0,0.5)',
+              maxHeight: '85vh',
+              overflowY: 'auto',
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              background: 'rgba(255, 255, 255, 0.06)',
-              border: '1px solid rgba(255, 255, 255, 0.1)',
-              borderRadius: '8px',
-              cursor: 'pointer',
-              color: 'var(--text)',
+              flexDirection: 'column',
             }}
           >
-            <X size={16} />
-          </button>
-        </div>
+            {/* Header */}
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '20px',
+                borderBottom: '1px solid var(--glass-border)',
+                flexShrink: 0,
+              }}
+            >
+              <p style={{ fontSize: '14px', fontWeight: 600, color: 'var(--text)', margin: 0 }}>
+                {uploadStatus === 'success' || uploadStatus === 'duplicate' ? '✓ Processing Finished' : 'Upload Study Material'}
+              </p>
+              <button onClick={handleClose} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: 0 }}>
+                <X size={18} />
+              </button>
+            </div>
 
-        {/* ── Body ────────────────────────────────────────────────── */}
-        <div
-          style={{
-            flex: 1,
-            overflow: 'auto',
-            padding: '24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '20px',
-          }}
-        >
-          <AnimatePresence mode="wait">
-            {step === 1 && (
-              <motion.div
-                key="step1"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
-              >
-                {/* Semester */}
-                <div>
-                  <label style={labelStyle}>Semester</label>
-                  <select
-                    value={semester}
-                    onChange={(e) => setSemester(e.target.value)}
-                    style={{...inputStyle, cursor: 'pointer'}}
-                  >
-                    <option value="">Select semester</option>
-                    {config.NISER_SEMESTERS.map((sem) => (
-                      <option key={sem} value={sem}>
-                        Semester {sem}
-                      </option>
-                    ))}
-                    <option value="ADVANCE COURSES">Advanced Courses</option>
-                  </select>
-                </div>
+            {/* Content Body */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '24px' }}>
+              {uploadStatus === 'success' || uploadStatus === 'duplicate' ? (
+                <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} style={{ textAlign: 'center', padding: '40px 20px' }}>
+                  {uploadStatus === 'duplicate' ? (
+                    <AlertCircle size={48} style={{ color: 'var(--gold)', margin: '0 auto 16px' }} />
+                  ) : (
+                    <CheckCircle size={48} style={{ color: 'var(--green-bright)', margin: '0 auto 16px' }} />
+                  )}
+                  <p style={{ fontSize: '16px', fontWeight: 600, color: 'var(--text)', marginBottom: '8px' }}>
+                    {uploadStatus === 'duplicate' ? 'Material Entry Exists' : 'Upload Successful!'}
+                  </p>
+                  <p style={{ fontSize: '13px', color: 'var(--text-2)', lineHeight: 1.6 }}>
+                    {uploadMessage}
+                  </p>
+                </motion.div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  <AnimatePresence mode="wait">
+                    {step === 1 && (
+                      <motion.div key="s1" variants={contentVar} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.22 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          <div>
+                            <label style={labelStyle}>Semester <span style={{ color: '#fca5a5' }}>*</span></label>
+                            <select value={semester} onChange={(e) => { setSemester(e.target.value); setCourseCode(''); }} style={{ ...inputStyle, appearance: 'none' }}>
+                              <option value="" style={{ background: '#0a1a0f' }}>Select Semester</option>
+                              {config.NISER_SEMESTERS.map((s) => <option key={s} value={s} style={{ background: '#0a1a0f' }}>Semester {s}</option>)}
+                            </select>
+                          </div>
 
-                {/* Course */}
-                <div>
-                  <label style={labelStyle}>Course</label>
-                  <select
-                    value={courseCode}
-                    onChange={(e) => {
-                      const course = courses.find((c) => c.code === e.target.value);
-                      setCourseCode(e.target.value);
-                      setCourseName(course?.name || '');
-                    }}
-                    style={{...inputStyle, cursor: 'pointer'}}
-                    disabled={!semester}
-                  >
-                    <option value="">Select course</option>
-                    {courses.map((course) => (
-                      <option key={course.code} value={course.code}>
-                        {course.code} — {course.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                          <div>
+                            <label style={labelStyle}>Year <span style={{ color: '#fca5a5' }}>*</span></label>
+                            <input type="text" value={year} onChange={(e) => setYear(e.target.value)} placeholder="e.g., 2024 or 2023-24" style={inputStyle} />
+                          </div>
 
-                {/* File Type */}
-                <div>
-                  <label style={labelStyle}>File Type</label>
-                  <select
-                    value={fileType}
-                    onChange={(e) => setFileType(e.target.value)}
-                    style={{...inputStyle, cursor: 'pointer'}}
-                    disabled={!courseCode}
-                  >
-                    <option value="">Select file type</option>
-                    {FILE_TYPE_OPTIONS.map((opt) => (
-                      <option key={opt.value} value={opt.value}>
-                        {opt.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+                          <div>
+                            <label style={labelStyle}>Course <span style={{ color: '#fca5a5' }}>*</span></label>
+                            <select value={courseCode} onChange={(e) => { setCourseCode(e.target.value); const c = courses.find((x) => x.code === e.target.value); setCourseName(c?.name || ''); }} style={{ ...inputStyle, appearance: 'none' }}>
+                              <option value="" style={{ background: '#0a1a0f' }}>Select Course</option>
+                              {courses.map((c) => <option key={c.code} value={c.code} style={{ background: '#0a1a0f' }}>{c.code} — {c.name}</option>)}
+                            </select>
+                          </div>
 
-                {/* Custom File Type (for "other") */}
-                {showOtherFileTypeField && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                  >
-                    <label style={labelStyle}>What type of file is this?</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., Tutorial Guides, Research Papers, etc."
-                      value={otherFileType}
-                      onChange={(e) => setOtherFileType(e.target.value)}
-                      style={inputStyle}
-                    />
-                  </motion.div>
-                )}
+                          <div>
+                            <label style={labelStyle}>Professor <span style={{ color: '#fca5a5' }}>*</span></label>
+                            <select value={professor} onChange={(e) => setProfessor(e.target.value)} style={{ ...inputStyle, appearance: 'none' }}>
+                              <option value="" style={{ background: '#0a1a0f' }}>Select Primary Professor</option>
+                              {allProfessors.map((p) => <option key={p} value={p} style={{ background: '#0a1a0f' }}>{p}</option>)}
+                            </select>
+                          </div>
 
-                {/* Exam Type (for question papers) */}
-                {fileType === 'qpaper' && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                    style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}
-                  >
-                    <label style={labelStyle}>Exam Type</label>
-                    {EXAM_TYPES.map((exam) => (
-                      <label
-                        key={exam.value}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          cursor: 'pointer',
-                          padding: '8px',
-                          borderRadius: '8px',
-                          background: examType === exam.value ? 'rgba(116, 198, 157, 0.2)' : 'transparent',
-                          transition: 'background 0.2s',
-                        }}
-                      >
-                        <input
-                          type="radio"
-                          name="examType"
-                          value={exam.value}
-                          checked={examType === exam.value}
-                          onChange={(e) => setExamType(e.target.value)}
-                          style={{ cursor: 'pointer' }}
-                        />
-                        <span style={{ fontSize: '13px', color: 'var(--text)' }}>{exam.label}</span>
-                      </label>
-                    ))}
-                  </motion.div>
-                )}
+                          {showOtherProfessorField && (
+                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                              <label style={labelStyle}>Mention Other Professor <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
+                              <input type="text" value={otherProfessor} onChange={(e) => setOtherProfessor(e.target.value)} placeholder="Enter professor name" style={inputStyle} />
+                            </motion.div>
+                          )}
 
-                {/* Custom Exam Type */}
-                {showOtherExamTypeField && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                  >
-                    <label style={labelStyle}>Other exam type (specify):</label>
-                    <input
-                      type="text"
-                      placeholder="e.g., Practical Exam, Viva, etc."
-                      value={otherExamType}
-                      onChange={(e) => setOtherExamType(e.target.value)}
-                      style={inputStyle}
-                    />
-                  </motion.div>
-                )}
+                          <div>
+                            <label style={labelStyle}>Professor 2 <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
+                            <select value={professor2} onChange={(e) => setProfessor2(e.target.value)} style={{ ...inputStyle, appearance: 'none' }}>
+                              <option value="" style={{ background: '#0a1a0f' }}>Select Professor (optional)</option>
+                              {allProfessors.map((p) => <option key={p} value={p} style={{ background: '#0a1a0f' }}>{p}</option>)}
+                            </select>
+                          </div>
 
-                {/* Year */}
-                <div>
-                  <label style={labelStyle}>Academic Year</label>
-                  <input
-                    type="number"
-                    placeholder="e.g., 2023"
-                    value={year}
-                    onChange={(e) => setYear(e.target.value)}
-                    style={inputStyle}
-                    min="2000"
-                    max={new Date().getFullYear()}
-                  />
-                </div>
-              </motion.div>
-            )}
+                          <div>
+                            <label style={labelStyle}>Professor 3 <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
+                            <select value={professor3} onChange={(e) => setProfessor3(e.target.value)} style={{ ...inputStyle, appearance: 'none' }}>
+                              <option value="" style={{ background: '#0a1a0f' }}>Select Professor (optional)</option>
+                              {allProfessors.map((p) => <option key={p} value={p} style={{ background: '#0a1a0f' }}>{p}</option>)}
+                            </select>
+                          </div>
 
-            {step === 2 && (
-              <motion.div
-                key="step2"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
-              >
-                {/* Professor */}
-                <div>
-                  <label style={labelStyle}>Professor(s)</label>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <select
-                      value={professor}
-                      onChange={(e) => setProfessor(e.target.value)}
-                      style={{...inputStyle, cursor: 'pointer'}}
-                    >
-                      <option value="">Select primary professor</option>
-                      {professors.map((prof) => (
-                        <option key={prof} value={prof}>
-                          {prof}
-                        </option>
-                      ))}
-                      <option value="Other">Other</option>
-                    </select>
-                    {professor2 && (
-                      <select
-                        value={professor2}
-                        onChange={(e) => setProfessor2(e.target.value)}
-                        style={{...inputStyle, cursor: 'pointer'}}
-                      >
-                        <option value="">No second professor</option>
-                        {professors.map((prof) => (
-                          <option key={prof} value={prof}>
-                            {prof}
-                          </option>
-                        ))}
-                        <option value="Other">Other</option>
-                      </select>
-                    )}
-                    {professor3 && (
-                      <select
-                        value={professor3}
-                        onChange={(e) => setProfessor3(e.target.value)}
-                        style={{...inputStyle, cursor: 'pointer'}}
-                      >
-                        <option value="">No third professor</option>
-                        {professors.map((prof) => (
-                          <option key={prof} value={prof}>
-                            {prof}
-                          </option>
-                        ))}
-                        <option value="Other">Other</option>
-                      </select>
-                    )}
-                  </div>
-                </div>
-
-                {showOtherProfessorField && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: 'auto' }}
-                    exit={{ opacity: 0, height: 0 }}
-                  >
-                    <label style={labelStyle}>Other Professor Name</label>
-                    <input
-                      type="text"
-                      placeholder="Enter professor name"
-                      value={otherProfessor}
-                      onChange={(e) => setOtherProfessor(e.target.value)}
-                      style={inputStyle}
-                    />
-                  </motion.div>
-                )}
-
-                {/* Uploader Info */}
-                <div>
-                  <label style={labelStyle}>Your Name (Optional)</label>
-                  <input
-                    type="text"
-                    placeholder="Your name or anonymous"
-                    value={uploaderName}
-                    onChange={(e) => setUploaderName(e.target.value)}
-                    style={inputStyle}
-                  />
-                </div>
-
-                {/* Remarks */}
-                <div>
-                  <label style={labelStyle}>Additional Notes (Optional)</label>
-                  <textarea
-                    placeholder="E.g., 'Handwritten notes', 'Contains solutions', etc."
-                    value={remarks}
-                    onChange={(e) => setRemarks(e.target.value)}
-                    style={{...inputStyle, minHeight: '80px', fontFamily: "'Outfit', sans-serif", resize: 'none'}}
-                  />
-                </div>
-              </motion.div>
-            )}
-
-            {step === 3 && (
-              <motion.div
-                key="step3"
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -20 }}
-                style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}
-              >
-                {uploadStatus === 'uploading' ? (
-                  <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                    <div
-                      style={{
-                        width: '60px',
-                        height: '60px',
-                        margin: '0 auto 20px',
-                        borderRadius: '50%',
-                        border: '3px solid rgba(116, 198, 157, 0.2)',
-                        borderTopColor: 'var(--green-bright)',
-                        animation: 'spin 0.8s linear infinite',
-                      }}
-                    />
-                    <p style={{ fontSize: '14px', color: 'var(--text)', margin: '0 0 8px 0' }}>
-                      Uploading files...
-                    </p>
-                    <p style={{ fontSize: '12px', color: 'var(--text-3)', margin: 0 }}>
-                      {uploadProgress}%
-                    </p>
-                    <div
-                      style={{
-                        width: '100%',
-                        height: '4px',
-                        background: 'rgba(255, 255, 255, 0.06)',
-                        borderRadius: '2px',
-                        marginTop: '12px',
-                        overflow: 'hidden',
-                      }}
-                    >
-                      <div
-                        style={{
-                          height: '100%',
-                          background: 'var(--green-bright)',
-                          width: `${uploadProgress}%`,
-                          transition: 'width 0.2s',
-                        }}
-                      />
-                    </div>
-                  </div>
-                ) : uploadStatus === 'success' ? (
-                  <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                    <CheckCircle size={60} style={{ color: 'var(--green-bright)', margin: '0 auto 20px' }} />
-                    <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', margin: '0 0 8px 0' }}>
-                      {uploadMessage}
-                    </p>
-                    <p style={{ fontSize: '12px', color: 'var(--text-3)', margin: 0 }}>
-                      Thank you for contributing!
-                    </p>
-                  </div>
-                ) : uploadStatus === 'duplicate' ? (
-                  <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                    <AlertCircle size={60} style={{ color: '#fca5a5', margin: '0 auto 20px' }} />
-                    <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', margin: '0 0 8px 0' }}>
-                      File Already Exists
-                    </p>
-                    <p style={{ fontSize: '12px', color: 'var(--text-3)', margin: 0 }}>
-                      {uploadMessage}
-                    </p>
-                  </div>
-                ) : uploadStatus === 'error' ? (
-                  <div style={{ textAlign: 'center', padding: '40px 20px' }}>
-                    <AlertCircle size={60} style={{ color: '#fca5a5', margin: '0 auto 20px' }} />
-                    <p style={{ fontSize: '14px', fontWeight: 500, color: 'var(--text)', margin: '0 0 8px 0' }}>
-                      Upload Failed
-                    </p>
-                    <p style={{ fontSize: '12px', color: 'var(--text-3)', margin: 0 }}>
-                      {uploadMessage}
-                    </p>
-                  </div>
-                ) : (
-                  <>
-                    <div>
-                      <label style={labelStyle}>Upload Files</label>
-                      <div
-                        onClick={() => fileInputRef.current?.click()}
-                        style={{
-                          border: '2px dashed rgba(116, 198, 157, 0.5)',
-                          borderRadius: '12px',
-                          padding: '24px',
-                          textAlign: 'center',
-                          cursor: 'pointer',
-                          background: 'rgba(116, 198, 157, 0.05)',
-                          transition: 'all 0.2s',
-                        }}
-                        onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLDivElement).style.background = 'rgba(116, 198, 157, 0.1)';
-                          (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(116, 198, 157, 0.8)';
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLDivElement).style.background = 'rgba(116, 198, 157, 0.05)';
-                          (e.currentTarget as HTMLDivElement).style.borderColor = 'rgba(116, 198, 157, 0.5)';
-                        }}
-                      >
-                        <Upload size={32} style={{ color: 'var(--green-bright)', margin: '0 auto 8px' }} />
-                        <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text)', margin: '0 0 4px 0' }}>
-                          Click to upload or drag and drop
-                        </p>
-                        <p style={{ fontSize: '11px', color: 'var(--text-3)', margin: 0 }}>
-                          Max {config.MAX_UPLOAD_SIZE_MB}MB per file
-                        </p>
-                      </div>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        multiple={isMultiFileType}
-                        onChange={(e) => handleFileSelect(e.target.files)}
-                        style={{ display: 'none' }}
-                      />
-                    </div>
-
-                    {uploadedFiles.length > 0 && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                        <label style={labelStyle}>
-                          Selected Files ({uploadedFiles.length})
-                        </label>
-                        {uploadedFiles.map((file, i) => (
-                          <div
-                            key={i}
-                            style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              padding: '10px 12px',
-                              background: 'rgba(255, 255, 255, 0.04)',
-                              border: '1px solid rgba(255, 255, 255, 0.08)',
-                              borderRadius: '8px',
-                            }}
-                          >
-                            <div style={{ minWidth: 0, flex: 1 }}>
-                              <p
-                                style={{
-                                  fontSize: '13px',
-                                  color: 'var(--text)',
-                                  margin: '0 0 2px 0',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                }}
-                                title={file.name}
-                              >
-                                {file.name}
-                              </p>
-                              <p style={{ fontSize: '11px', color: 'var(--text-3)', margin: 0 }}>
-                                {formatFileSize(file.size)}
-                              </p>
-                            </div>
-                            <button
-                              onClick={() => removeFile(i)}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: 'var(--text-3)',
-                                cursor: 'pointer',
-                                padding: '4px',
-                                marginLeft: '12px',
-                              }}
-                            >
-                              <X size={16} />
+                          <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                            <button onClick={handleClose} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px' }}>Cancel</button>
+                            <button onClick={() => setStep(2)} disabled={!canStep1} className="btn-gold" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: canStep1 ? 1 : 0.4, cursor: canStep1 ? 'pointer' : 'not-allowed' }}>
+                              Next <ChevronRight size={15} />
                             </button>
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      </motion.div>
                     )}
 
-                    {/* Consent */}
-                    <label
-                      style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: '8px',
-                        cursor: 'pointer',
-                        padding: '8px',
-                      }}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={consent}
-                        onChange={(e) => setConsent(e.target.checked)}
-                        style={{ cursor: 'pointer', marginTop: '2px' }}
-                      />
-                      <span style={{ fontSize: '12px', color: 'var(--text-2)', lineHeight: 1.4 }}>
-                        I confirm that I have the rights to share this material and it complies with
-                        academic integrity guidelines.
-                      </span>
-                    </label>
-                  </>
-                )}
-              </motion.div>
-            )}
-          </AnimatePresence>
+                    {step === 2 && (
+                      <motion.div key="s2" variants={contentVar} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.22 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          <div>
+                            <label style={labelStyle}>File Type <span style={{ color: '#fca5a5' }}>*</span></label>
+                            <select value={fileType} onChange={(e) => setFileType(e.target.value)} style={{ ...inputStyle, appearance: 'none' }}>
+                              <option value="" style={{ background: '#0a1a0f' }}>Select File Type</option>
+                              {FILE_TYPE_OPTIONS.map((ft) => <option key={ft.value} value={ft.value} style={{ background: '#0a1a0f' }}>{ft.label}</option>)}
+                            </select>
+                          </div>
 
-          {/* Error message display */}
-          {uploadStatus === 'error' && uploadMessage && (
-            <motion.div
-              initial={{ opacity: 0, y: -10 }}
-              animate={{ opacity: 1, y: 0 }}
-              style={{
-                padding: '12px',
-                background: 'rgba(239, 68, 68, 0.1)',
-                border: '1px solid rgba(239, 68, 68, 0.3)',
-                borderRadius: '8px',
-              }}
-            >
-              <p style={{ fontSize: '12px', color: '#fca5a5', margin: 0 }}>{uploadMessage}</p>
-            </motion.div>
-          )}
-        </div>
+                          {showOtherFileTypeField && (
+                            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                              <label style={labelStyle}>Mention Other File Type <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
+                              <input type="text" value={otherFileType} onChange={(e) => setOtherFileType(e.target.value)} placeholder="What type of file is this?" style={inputStyle} />
+                            </motion.div>
+                          )}
 
-        {/* ── Footer ──────────────────────────────────────────────── */}
-        <div
-          style={{
-            display: 'flex',
-            gap: '12px',
-            padding: '16px 20px',
-            borderTop: '1px solid rgba(255, 255, 255, 0.06)',
-            background: 'rgba(0, 0, 0, 0.1)',
-          }}
-        >
-          {['uploading', 'success', 'duplicate', 'error'].includes(uploadStatus) ? (
-            <button
-              onClick={handleClose}
-              style={{
-                flex: 1,
-                padding: '10px 16px',
-                background: 'rgba(116, 198, 157, 0.2)',
-                border: '1px solid rgba(116, 198, 157, 0.4)',
-                borderRadius: '8px',
-                color: 'var(--green-bright)',
-                cursor: 'pointer',
-                fontWeight: 500,
-                fontSize: '13px',
-              }}
-            >
-              Close
-            </button>
-          ) : (
-            <>
-              {step > 1 && (
-                <button
-                  onClick={() => setStep((s) => (s - 1) as Step)}
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    padding: '10px 16px',
-                    background: 'rgba(255, 255, 255, 0.06)',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    borderRadius: '8px',
-                    color: 'var(--text)',
-                    cursor: 'pointer',
-                    fontWeight: 500,
-                    fontSize: '13px',
-                  }}
-                >
-                  <ChevronLeft size={14} />
-                  Back
-                </button>
+                          {fileType === 'qpaper' && (
+                            <AnimatePresence>
+                              <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}>
+                                <label style={labelStyle}>Exam Type <span style={{ color: '#fca5a5' }}>*</span></label>
+                                <select value={examType} onChange={(e) => setExamType(e.target.value)} style={{ ...inputStyle, appearance: 'none' }}>
+                                  <option value="" style={{ background: '#0a1a0f' }}>Select Exam Type</option>
+                                  {EXAM_TYPES.map((et) => <option key={et.value} value={et.value} style={{ background: '#0a1a0f' }}>{et.label}</option>)}
+                                  <option value="other" style={{ background: '#0a1a0f' }}>Other</option>
+                                </select>
+                              </motion.div>
+
+                              {showOtherExamTypeField && (
+                                <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} style={{ marginTop: '12px' }}>
+                                  <label style={labelStyle}>Mention Other Exam Type <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
+                                  <input type="text" value={otherExamType} onChange={(e) => setOtherExamType(e.target.value)} placeholder="e.g., Pre-Sem Exam" style={inputStyle} />
+                                </motion.div>
+                              )}
+                            </AnimatePresence>
+                          )}
+
+                          <div>
+                            <label style={labelStyle}>
+                              Files <span style={{ color: '#fca5a5' }}>*</span>
+                              {isMultiFileType && <span style={{ color: 'var(--text-3)', fontWeight: 400 }}> (Multiple files allowed)</span>}
+                            </label>
+                            <div
+                              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                              onDrop={(e) => { e.preventDefault(); e.stopPropagation(); handleFileSelect(e.dataTransfer.files); }}
+                              onClick={() => fileInputRef.current?.click()}
+                              style={{
+                                border: '1px dashed rgba(212,168,83,0.4)',
+                                borderRadius: '12px',
+                                padding: '28px',
+                                textAlign: 'center',
+                                cursor: 'pointer',
+                                background: 'rgba(212,168,83,0.04)',
+                              }}
+                            >
+                              <Upload size={28} style={{ margin: '0 auto 8px', color: 'var(--gold)' }} />
+                              <p style={{ fontSize: '13px', fontWeight: 500, color: 'var(--text-2)', marginBottom: '4px' }}>Drag and drop or click to select</p>
+                              <p style={{ fontSize: '11px', color: 'var(--text-3)' }}>{config.ALLOWED_FILE_TYPES.map((t) => `.${t}`).join(', ')} · Max {config.MAX_UPLOAD_SIZE_MB}MB per file</p>
+                              <input ref={fileInputRef} type="file" onChange={(e) => handleFileSelect(e.target.files)} style={{ display: 'none' }} multiple={!!isMultiFileType} />
+                            </div>
+
+                            {uploadedFiles.length > 0 && (
+                              <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                {uploadedFiles.map((file, idx) => (
+                                  <div key={idx} style={{ padding: '10px 14px', background: 'rgba(82,183,136,0.1)', border: '1px solid rgba(82,183,136,0.25)', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                                    <div>
+                                      <p style={{ fontSize: '12px', fontWeight: 500, color: 'var(--green-bright)', marginBottom: '2px' }}>{file.name}</p>
+                                      <p style={{ fontSize: '11px', color: 'var(--text-3)' }}>{formatFileSize(file.size)}</p>
+                                    </div>
+                                    <button onClick={() => removeFile(idx)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-3)' }}>
+                                      <X size={15} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </motion.div>
+                            )}
+                          </div>
+
+                          {uploadStatus === 'error' && (
+                            <p style={{ fontSize: '12px', color: '#fca5a5', background: 'rgba(239,68,68,0.08)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '8px', padding: '10px 12px' }}>{uploadMessage}</p>
+                          )}
+
+                          <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                            <button onClick={() => setStep(1)} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px' }}><ChevronLeft size={15} /> Back</button>
+                            <button onClick={() => setStep(3)} disabled={!canStep2} className="btn-gold" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: canStep2 ? 1 : 0.4, cursor: canStep2 ? 'pointer' : 'not-allowed' }}>Next <ChevronRight size={15} /></button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+
+                    {step === 3 && (
+                      <motion.div key="s3" variants={contentVar} initial="hidden" animate="visible" exit="exit" transition={{ duration: 0.22 }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                          <div style={{ padding: '14px 16px', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: '12px', fontSize: '12px', lineHeight: 1.7 }}>
+                            <p style={{ fontWeight: 600, color: 'var(--green-bright)', marginBottom: '6px', letterSpacing: '0.04em' }}>Upload Summary</p>
+                            {[
+                              ['Course', `${courseCode} — ${courseName}`],
+                              ['Professor', [professor === 'Other' ? otherProfessor : professor, professor2 === 'Other' ? otherProfessor : professor2, professor3 === 'Other' ? otherProfessor : professor3].filter(Boolean).join(', ')],
+                              ['Type', `${fileType === 'other' ? otherFileType : fileType}${examType ? ` (${examType === 'other' ? otherExamType : EXAM_TYPES.find((e) => e.value === examType)?.label})` : ''}${year ? ` · ${year}` : ''}`],
+                              ['Files', `${uploadedFiles.length} file${uploadedFiles.length !== 1 ? 's' : ''}`],
+                            ].map(([k, v]) => (
+                              <p key={k}><span style={{ color: 'var(--text-3)' }}>{k}:</span> <span style={{ color: 'var(--text-2)' }}>{v}</span></p>
+                            ))}
+                          </div>
+
+                          <div>
+                            <label style={labelStyle}>Your Name <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
+                            <input type="text" value={uploaderName} onChange={(e) => setUploaderName(e.target.value)} placeholder="Leave blank to stay anonymous" style={inputStyle} />
+                          </div>
+
+                          <div>
+                            <label style={labelStyle}>Remarks <span style={{ color: 'var(--text-3)', fontWeight: 400 }}>(optional)</span></label>
+                            <textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} placeholder="Any additional notes about these files..." style={{ ...inputStyle, fontFamily: "'Outfit', sans-serif", minHeight: '80px', resize: 'vertical' }} />
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '10px', padding: '12px 14px', background: 'rgba(116,198,157,0.06)', border: '1px solid rgba(116,198,157,0.15)', borderRadius: '10px' }}>
+                            <input type="checkbox" id="consent" checked={consent} onChange={(e) => setConsent(e.target.checked)} style={{ marginTop: '2px', accentColor: 'var(--green-bright)', width: '14px', height: '14px' }} />
+                            <label htmlFor="consent" style={{ fontSize: '12px', color: 'var(--text-2)', cursor: 'pointer', lineHeight: 1.5 }}>I consent to having my name displayed with this upload</label>
+                          </div>
+
+                          {uploadStatus === 'uploading' && (
+                            <div>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                                <span style={{ fontSize: '12px', color: 'var(--text-2)' }}>Uploading…</span>
+                                <span style={{ fontSize: '12px', color: 'var(--gold)', fontWeight: 500 }}>{uploadProgress}%</span>
+                              </div>
+                              <div style={{ height: '4px', background: 'rgba(255,255,255,0.08)', borderRadius: '4px', overflow: 'hidden' }}>
+                                <motion.div initial={{ width: 0 }} animate={{ width: `${uploadProgress}%` }} style={{ height: '100%', background: 'linear-gradient(90deg, var(--green-light), var(--gold))', borderRadius: '4px' }} />
+                              </div>
+                            </div>
+                          )}
+
+                          <div style={{ display: 'flex', gap: '10px', marginTop: '8px' }}>
+                            <button onClick={() => setStep(2)} disabled={uploadStatus === 'uploading'} className="btn-ghost" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: uploadStatus === 'uploading' ? 0.4 : 1 }}><ChevronLeft size={15} /> Back</button>
+                            <button onClick={handleSubmit} disabled={uploadStatus === 'uploading'} className="btn-gold" style={{ flex: 1, justifyContent: 'center', borderRadius: '10px', opacity: uploadStatus === 'uploading' ? 0.6 : 1 }}>
+                              {uploadStatus === 'uploading' ? 'Uploading…' : 'Submit'}
+                            </button>
+                          </div>
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
               )}
-
-              {step < 3 ? (
-                <button
-                  onClick={() => {
-                    if (step === 1 && (!semester || !courseCode || !fileType)) {
-                      setUploadStatus('error');
-                      setUploadMessage('Please fill in all required fields');
-                      return;
-                    }
-                    if (fileType === 'qpaper' && !examType) {
-                      setUploadStatus('error');
-                      setUploadMessage('Please select the exam type');
-                      return;
-                    }
-                    if (fileType === 'other' && !otherFileType) {
-                      setUploadStatus('error');
-                      setUploadMessage('Please specify the file type');
-                      return;
-                    }
-                    if (!year) {
-                      setUploadStatus('error');
-                      setUploadMessage('Please enter the year');
-                      return;
-                    }
-                    setUploadStatus('idle');
-                    setUploadMessage('');
-                    setStep((s) => (s + 1) as Step);
-                  }}
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    padding: '10px 16px',
-                    background: 'var(--gold)',
-                    border: 'none',
-                    borderRadius: '8px',
-                    color: '#0a1a0f',
-                    cursor: 'pointer',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                  }}
-                >
-                  Next
-                  <ChevronRight size={14} />
-                </button>
-              ) : (
-                <button
-                  onClick={handleSubmit}
-                  disabled={!consent || uploadedFiles.length === 0}
-                  style={{
-                    flex: 1,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '6px',
-                    padding: '10px 16px',
-                    background: consent && uploadedFiles.length > 0 ? 'var(--gold)' : 'rgba(116, 198, 157, 0.2)',
-                    border: 'none',
-                    borderRadius: '8px',
-                    color: consent && uploadedFiles.length > 0 ? '#0a1a0f' : 'var(--text-3)',
-                    cursor: consent && uploadedFiles.length > 0 ? 'pointer' : 'not-allowed',
-                    fontWeight: 600,
-                    fontSize: '13px',
-                  }}
-                >
-                  <Upload size={14} />
-                  Upload
-                </button>
-              )}
-            </>
-          )}
-        </div>
-
-        <style>{`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
-      </motion.div>
-    </motion.div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
   );
 }
